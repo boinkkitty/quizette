@@ -1,7 +1,7 @@
 # Go
 backend/genbench-results.csv
-backend/testdata/pdfs/*.pdf
-!backend/testdata/pdfs/sample-cells.pdf
+# Benchmark PDFs (local only; `make fixture` regenerates the sample).
+backend/testdata/
 # Node
 node_modules/
 dist/
@@ -14,3 +14,6 @@ e2e/playwright-report/
 !.env.example
 .dev.vars
 .DS_Store
+
+# Personal setup notes (local only).
+SETUP.md

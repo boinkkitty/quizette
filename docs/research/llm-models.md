@@ -6,10 +6,10 @@ Quizette sends a lecture PDF (or its extracted text) to an LLM and needs 5–20 
 
 ## Recommendation
 
-1. **Use `gemini-3.6-flash`.** It passed every real test, takes the PDF directly, and is the newest Flash that was reliably available. This is the value in `backend/.env.local`.
+1. **Use `gemini-3.6-flash`** (the code default). It passed every real test, takes the PDF directly, and is the newest Flash that was reliably available.
 2. **Fallback: `gemini-3.5-flash`.** It also passed every run.
 3. **For speed or quota: `gemini-3.1-flash-lite`.** It was the fastest at about 3.4 s, has no thinking tokens (about 2.1k tokens per call against 3.2k), and its output was valid. Question quality hasn't been compared yet.
-4. **Don't depend on `gemini-3.8-flash` (the code default) or `gemini-4-hydrogen` yet.** Both were "overloaded" (HTTP 503) most of the time. The app has no retry or fallback, so a 503 fails the upload.
+4. **Don't depend on `gemini-3.8-flash` or `gemini-4-hydrogen` yet.** Both were "overloaded" (HTTP 503) most of the time. The app has no retry or fallback, so a 503 fails the upload.
 5. **Other providers are a later option, not a replacement.** None gives a permanently free tier with native PDF input and strict JSON schema output together (see below).
 
 ## Gemini: what works
@@ -34,7 +34,7 @@ Quizette sends a lecture PDF (or its extracted text) to an LLM and needs 5–20 
 | **gemini-3.1-flash-lite** | Yes | ✅ valid | ✅ valid | 1,521 / 589 / 0 | 3.4 s | Fastest and cheapest; check quality |
 | gemini-4-hydrogen | Yes | ✅ valid | ❌ 503 | 2,177 / 584 / 1,512 | 11.1 s | Works when not overloaded |
 | gemma-4-26b-a4b-it | Yes | ❌ 503 | ✅ valid | 997 / 370 / 0 | 10.2 s | Works when not overloaded; open model |
-| gemini-3.8-flash | Yes | ❌ 503 | ❌ 503 | none | none | Overloaded on every attempt across both days |
+| gemini-3.8-flash | Yes | ❌ 503 | ❌ 503 | none | none | Overloaded on every attempt across both days (default until 2026-11-23) |
 | gemini-3.5-flash-lite | Yes | ❌ 503 | ❌ 503 | none | none | Answered the 11-22 probe; overloaded on 11-23 |
 | gemma-4-31b-it | Yes | ❌ 503 | ❌ 503 | none | none | Overloaded on every attempt |
 | gemini-3-flash-preview | Yes ("legacy") | ❌ 404 | ❌ 404 | none | none | Not on the v1 API our SDK uses |
@@ -49,7 +49,7 @@ Quizette sends a lecture PDF (or its extracted text) to an LLM and needs 5–20 
 ### Problems found and fixed
 
 - **The schema was rejected.** Gemini returned 400 "The specified schema produces a constraint that has too many states for serving" when the outer `questions` array had both `minItems: 5` and `maxItems: 30`. With `minItems: 5` alone it's accepted. The upper bound (20) now lives in the prompt and in the domain validation. A unit test fails if `maxItems` comes back.
-- **The default model was retired:** `gemini-2.5-flash` is closed to new users, so the default is now `gemini-3.8-flash`. Given the 503s above, consider switching the default to `gemini-3.6-flash`.
+- **The default model was retired:** `gemini-2.5-flash` is closed to new users. The default went to `gemini-3.8-flash`, then to `gemini-3.6-flash` because of the 503s above.
 
 ### Prompt behaviour (one sample)
 

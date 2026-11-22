@@ -19,7 +19,7 @@ import (
 )
 
 // DefaultModel is the free-tier model used unless configured otherwise.
-const DefaultModel = "gemini-3.8-flash"
+const DefaultModel = "gemini-3.6-flash"
 
 // maxTextChars caps extracted text sent in text mode.
 const maxTextChars = 1_000_000

@@ -12,9 +12,9 @@ We want to compare latency (extract / LLM / total), token usage (input / output 
 ## Method
 ```
 cd backend
-GEMINI_API_KEY=... make bench        # = go run ./cmd/genbench -dir testdata/pdfs -runs 3 -count 10
+make bench   # GEMINI_API_KEY from backend/.env.local; = go run ./cmd/genbench -dir testdata/pdfs -runs 3 -count 10
 ```
-Fixtures in `backend/testdata/pdfs` (see its README): short text, ~30-page, tables/diagrams, scanned. Results also accumulate in production in `processing_jobs` metric columns.
+Fixtures go in `backend/testdata/pdfs` (git-ignored; `make fixture` writes a small sample): short text, ~30-page, tables/diagrams, scanned. Results also accumulate in production in `processing_jobs` metric columns.
 
 ## Results
 _To be filled in from `genbench` output._

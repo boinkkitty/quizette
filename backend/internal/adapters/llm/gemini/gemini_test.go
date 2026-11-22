@@ -101,7 +101,7 @@ func TestPDFNativeSendsSchemaAndPDF(t *testing.T) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !strings.Contains(c.path, "gemini-3.8-flash:generateContent") {
+	if !strings.Contains(c.path, "gemini-3.6-flash:generateContent") {
 		t.Errorf("path = %s", c.path)
 	}
 	if got := dig(c.body, "generationConfig", "responseMimeType"); got != "application/json" {

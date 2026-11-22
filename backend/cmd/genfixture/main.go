@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/boinkkitty/quizette/backend/internal/adapters/pdf/pdftest"
 )
@@ -25,6 +26,10 @@ func main() {
 	out := "testdata/pdfs/sample-cells.pdf"
 	if len(os.Args) > 1 {
 		out = os.Args[1]
+	}
+	if err := os.MkdirAll(filepath.Dir(out), 0o750); err != nil { //nolint:gosec // developer-chosen output path
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 	if err := os.WriteFile(out, pdftest.Minimal(pages...), 0o600); err != nil { //nolint:gosec // developer-chosen output path
 		fmt.Fprintln(os.Stderr, err)

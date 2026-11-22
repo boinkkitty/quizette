@@ -6,11 +6,9 @@ Upload a PDF, get a reusable bank of LLM-generated questions (multiple choice, t
 - **Edge** — Cloudflare Worker: serves the SPA, proxies `/api/*` to the API (same-origin session cookie) · `worker/`
 - **Backend** — Go 1.27, chi, pgx + sqlc, goose, `log/slog`; hexagonal / DDD · `backend/`
 - **Database** — PostgreSQL (Neon in production)
-- **LLM** — Gemini 3.8 Flash behind a swappable `QuestionGenerator` port; schema-constrained JSON output
+- **LLM** — Gemini 3.6 Flash behind a swappable `QuestionGenerator` port; schema-constrained JSON output
 
 Read [docs/architecture.md](docs/architecture.md), [GLOSSARY.md](GLOSSARY.md) and [docs/adr/](docs/adr/).
-
-Still to do by hand (API keys, OAuth apps, deployment): see [SETUP.md](SETUP.md).
 
 ## Local development
 
