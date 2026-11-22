@@ -13,7 +13,7 @@ import (
 func TestStubProducesValidSet(t *testing.T) {
 	t.Parallel()
 	doc, _ := domain.NewDocument("x.pdf", []byte("%PDF-1.4"))
-	for _, n := range []int{5, 30} {
+	for _, n := range []int{5, domain.MaxSetSize} {
 		spec, _ := domain.NewQuestionSpec(n, nil)
 		res, err := stub.Generator{}.Generate(context.Background(), app.GenerateInput{Document: doc, Spec: spec})
 		if err != nil {

@@ -25,10 +25,6 @@ UPDATE processing_jobs SET
     started_at = $16, finished_at = $17
 WHERE id = $1;
 
--- Uploads since a time, for the per-user daily limit (uses processing_jobs_owner_queued_idx).
--- name: CountJobsSince :one
-SELECT count(*)::int FROM processing_jobs WHERE owner_id = $1 AND queued_at >= $2;
-
 -- Jobs a restart interrupted; the API marks them failed on boot (uses the partial index).
 -- name: ListUnfinishedJobs :many
 SELECT * FROM processing_jobs WHERE status IN ('queued', 'running') ORDER BY queued_at;

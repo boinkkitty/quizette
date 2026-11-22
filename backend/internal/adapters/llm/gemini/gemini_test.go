@@ -101,7 +101,7 @@ func TestPDFNativeSendsSchemaAndPDF(t *testing.T) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !strings.Contains(c.path, "gemini-2.5-flash:generateContent") {
+	if !strings.Contains(c.path, "gemini-3.8-flash:generateContent") {
 		t.Errorf("path = %s", c.path)
 	}
 	if got := dig(c.body, "generationConfig", "responseMimeType"); got != "application/json" {
@@ -110,6 +110,11 @@ func TestPDFNativeSendsSchemaAndPDF(t *testing.T) {
 	schema, _ := dig(c.body, "generationConfig", "responseJsonSchema").(map[string]any)
 	if schema == nil || dig(schema, "properties", "questions", "type") != "array" {
 		t.Errorf("schema not sent: %v", dig(c.body, "generationConfig"))
+	}
+	// Gemini rejects a minItems+maxItems range on the outer array ("schema produces a constraint
+	// that has too many states for serving"), so the upper bound lives in the prompt and the domain.
+	if v := dig(schema, "properties", "questions", "maxItems"); v != nil {
+		t.Errorf("questions.maxItems = %v; Gemini can't serve a bounded outer array", v)
 	}
 	sys, _ := json.Marshal(dig(c.body, "systemInstruction"))
 	if !strings.Contains(string(sys), "EXACTLY 5 questions") || !strings.Contains(string(sys), "must have exactly 4 options") {
@@ -180,7 +185,8 @@ func TestLiveGemini(t *testing.T) {
 	if key == "" || testing.Short() {
 		t.Skip("GEMINI_API_KEY not set")
 	}
-	g, err := gemini.New(context.Background(), gemini.Config{APIKey: key})
+	// GEMINI_MODEL picks the model, as it does for the API; empty means gemini.DefaultModel.
+	g, err := gemini.New(context.Background(), gemini.Config{APIKey: key, Model: os.Getenv("GEMINI_MODEL")})
 	if err != nil {
 		t.Fatal(err)
 	}

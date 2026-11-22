@@ -9,7 +9,7 @@ import (
 // Bank-size rules shared by uploads, prompts, validation and attempts.
 const (
 	MinSetSize = 5
-	MaxSetSize = 30
+	MaxSetSize = 20
 	SizeStep   = 5
 )
 
@@ -19,7 +19,7 @@ type QuestionSpec struct {
 	TypeMix []QuestionType
 }
 
-// NewQuestionSpec validates count (5..30, multiple of 5). An empty mix means all types.
+// NewQuestionSpec validates count (5..20, multiple of 5). An empty mix means all types.
 func NewQuestionSpec(count int, mix []QuestionType) (QuestionSpec, error) {
 	if count < MinSetSize || count > MaxSetSize || count%SizeStep != 0 {
 		return QuestionSpec{}, Invalid(fmt.Sprintf("question count must be a multiple of %d between %d and %d", SizeStep, MinSetSize, MaxSetSize))

@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import type { UploadInput } from '../api/queries'
 import type { Topic } from '../api/schemas'
 import { countOptions, formatBytes } from '../lib/format'
-import { validateFile } from '../lib/upload'
+import { MAX_BANK_SIZE, validateFile } from '../lib/upload'
 import { Field } from './Field'
 import { Spinner } from './Spinner'
 
@@ -124,7 +124,7 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
         <Field label="Questions to generate" hint="The bank you'll practise from">
           {(c) => (
             <NativeSelect className="w-full" {...c} value={count} onChange={(e) => setCount(Number(e.target.value))}>
-              {countOptions(30).map((n) => (
+              {countOptions(MAX_BANK_SIZE).map((n) => (
                 <NativeSelectOption key={n} value={n}>
                   {n}
                 </NativeSelectOption>

@@ -14,7 +14,7 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Port != "9000" || c.PublicURL != "https://app.example" || c.DailyUploadLimit != 10 || c.GenerationStrategy != "pdf-native" {
+	if c.Port != "9000" || c.PublicURL != "https://app.example" || c.GenerationStrategy != "pdf-native" {
 		t.Errorf("defaults: %+v", c)
 	}
 

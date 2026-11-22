@@ -37,7 +37,7 @@ func newHarness(t *testing.T) *harness {
 	clock := apptest.NewClock(time.Now())
 	deps := app.Deps{Repos: store.Repos(), UoW: store, Clock: clock, IDs: &apptest.IDs{}, Logger: logger}
 	queue := &apptest.SyncQueue{}
-	gen := &app.GenerationService{Deps: deps, Generator: stub.Generator{}, Queue: queue, Config: app.GenerationConfig{DailyLimit: 10}}
+	gen := &app.GenerationService{Deps: deps, Generator: stub.Generator{}, Queue: queue, Config: app.GenerationConfig{}}
 	queue.Handler = gen.ProcessJob
 	ids := &app.IdentityService{Deps: deps, Hasher: apptest.Hasher{}, Providers: map[string]app.OAuthProvider{
 		"github": apptest.OAuthProvider{ProviderName: "github", Identity: domain.OAuthIdentity{ProviderUserID: "1", Email: "gh@example.com", EmailVerified: true}},

@@ -122,8 +122,10 @@ func newQuestion(id ID, position int, d QuestionDraft) (Question, error) {
 		if len(options) < MRQMinOptions || len(options) > MRQMaxOptions {
 			add("mrq must have %d-%d options, got %d", MRQMinOptions, MRQMaxOptions, len(options))
 		}
-		if len(correct) < 2 || len(correct) > len(options)-1 {
-			add("mrq must have between 2 and %d correct answers, got %d", max(len(options)-1, 2), len(correct))
+		// Any number of options can be correct, including all of them. Grading subtracts
+		// wrong picks, so ticking everything is penalised whenever some option is wrong.
+		if len(correct) < 1 {
+			add("mrq must have at least 1 correct answer, got %d", len(correct))
 		}
 	default:
 		add("unknown question type %q", d.Type)

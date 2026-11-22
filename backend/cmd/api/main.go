@@ -69,7 +69,7 @@ func run() error {
 	deps := app.Deps{Repos: store.Repos(), UoW: store, Clock: system.Clock{}, IDs: system.UUIDv7{}, Logger: logger}
 	genSvc := &app.GenerationService{
 		Deps: deps, Generator: generator,
-		Config: app.GenerationConfig{DailyLimit: cfg.DailyUploadLimit, MaxRetries: 1, JobTimeout: cfg.JobTimeout},
+		Config: app.GenerationConfig{MaxRetries: 1, JobTimeout: cfg.JobTimeout},
 	}
 	queue := inprocess.New(cfg.JobWorkers, cfg.JobQueueSize, genSvc.ProcessJob, logger)
 	genSvc.Queue = queue

@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     id                 uuid PRIMARY KEY,
     chapter_id         uuid NOT NULL REFERENCES chapters (id) ON DELETE CASCADE,
     owner_id           uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    -- domain.QuestionSpec: 5 to 30 questions, in steps of 5.
-    requested_count    int NOT NULL CHECK (requested_count BETWEEN 5 AND 30 AND requested_count % 5 = 0),
+    -- domain.QuestionSpec: 5 to 20 questions, in steps of 5.
+    requested_count    int NOT NULL CHECK (requested_count BETWEEN 5 AND 20 AND requested_count % 5 = 0),
     type_mix           text[] NOT NULL,         -- question types requested, e.g. {mcq,true_false,mrq}
     doc_filename       text NOT NULL,
     doc_size           bigint NOT NULL,         -- bytes
@@ -101,7 +101,6 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     started_at         timestamptz,
     finished_at        timestamptz
 );
-CREATE INDEX IF NOT EXISTS processing_jobs_owner_queued_idx ON processing_jobs (owner_id, queued_at DESC); -- daily upload limit
 CREATE INDEX IF NOT EXISTS processing_jobs_chapter_idx ON processing_jobs (chapter_id, queued_at DESC);    -- latest job per chapter
 -- Partial index: only unfinished jobs, scanned on boot to fail jobs interrupted by a restart.
 CREATE INDEX IF NOT EXISTS processing_jobs_unfinished_idx ON processing_jobs (status) WHERE status IN ('queued', 'running');

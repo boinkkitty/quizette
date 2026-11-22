@@ -168,7 +168,7 @@ func (r jobRepo) Create(ctx context.Context, j domain.ProcessingJob) error {
 	}
 	return mapErr("job", r.q.CreateJob(ctx, sqlcgen.CreateJobParams{
 		ID: string(j.ID), ChapterID: string(j.ChapterID), OwnerID: string(j.OwnerID),
-		RequestedCount: int32(j.Spec.Count), TypeMix: mix, //nolint:gosec // bounded by domain (<=30)
+		RequestedCount: int32(j.Spec.Count), TypeMix: mix, //nolint:gosec // bounded by domain.MaxSetSize
 		DocFilename: j.Document.Filename, DocSize: j.Document.Size, DocSha256: j.Document.SHA256,
 		Status: string(j.Status), Attempts: int32(j.Attempts), Error: j.Error, QueuedAt: j.QueuedAt, //nolint:gosec // small counter
 	}))
@@ -199,11 +199,6 @@ func (r jobRepo) Update(ctx context.Context, j domain.ProcessingJob) error {
 		StartedAt: j.StartedAt, FinishedAt: j.FinishedAt,
 	})
 	return mustAffect("job", n, err)
-}
-
-func (r jobRepo) CountSince(ctx context.Context, owner domain.ID, since time.Time) (int, error) {
-	n, err := r.q.CountJobsSince(ctx, sqlcgen.CountJobsSinceParams{OwnerID: string(owner), QueuedAt: since})
-	return int(n), mapErr("jobs", err)
 }
 
 func (r jobRepo) ListUnfinished(ctx context.Context) ([]domain.ProcessingJob, error) {

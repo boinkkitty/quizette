@@ -59,7 +59,7 @@ func TestRepositoriesFullFlow(t *testing.T) {
 	store := postgres.NewStore(pool)
 	deps := app.Deps{Repos: store.Repos(), UoW: store, Clock: system.Clock{}, IDs: system.UUIDv7{}, Logger: slog.New(slog.NewTextHandler(testWriter{t}, &slog.HandlerOptions{Level: slog.LevelWarn}))}
 	queue := &apptest.SyncQueue{}
-	gen := &app.GenerationService{Deps: deps, Generator: stub.Generator{}, Queue: queue, Config: app.GenerationConfig{DailyLimit: 100}}
+	gen := &app.GenerationService{Deps: deps, Generator: stub.Generator{}, Queue: queue, Config: app.GenerationConfig{}}
 	queue.Handler = gen.ProcessJob
 	ids := &app.IdentityService{Deps: deps, Hasher: system.Bcrypt{Cost: 4}}
 	lib := &app.LibraryService{Deps: deps}

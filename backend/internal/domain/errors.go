@@ -13,7 +13,6 @@ var (
 	ErrConflict          = errors.New("conflict")
 	ErrUnauthorized      = errors.New("unauthorized")
 	ErrInvalidTransition = errors.New("invalid state transition")
-	ErrRateLimited       = errors.New("rate limited")
 )
 
 // ValidationError lists every rule a value broke. It is returned instead of

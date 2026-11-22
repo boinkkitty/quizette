@@ -10,23 +10,6 @@ import (
 	"time"
 )
 
-const countJobsSince = `-- name: CountJobsSince :one
-SELECT count(*)::int FROM processing_jobs WHERE owner_id = $1 AND queued_at >= $2
-`
-
-type CountJobsSinceParams struct {
-	OwnerID  string
-	QueuedAt time.Time
-}
-
-// Uploads since a time, for the per-user daily limit (uses processing_jobs_owner_queued_idx).
-func (q *Queries) CountJobsSince(ctx context.Context, arg CountJobsSinceParams) (int32, error) {
-	row := q.db.QueryRow(ctx, countJobsSince, arg.OwnerID, arg.QueuedAt)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const createJob = `-- name: CreateJob :exec
 
 INSERT INTO processing_jobs (

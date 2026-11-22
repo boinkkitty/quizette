@@ -40,8 +40,6 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, http.StatusConflict, errorBody{Error: "conflict", Message: publicMessage(err, "conflict")})
 	case errors.Is(err, domain.ErrUnauthorized):
 		writeJSON(w, http.StatusUnauthorized, errorBody{Error: "unauthorized", Message: publicMessage(err, "unauthorized")})
-	case errors.Is(err, domain.ErrRateLimited):
-		writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: publicMessage(err, "rate limited")})
 	default:
 		recordError(r.Context(), err)
 		logctx.From(r.Context(), s.log).ErrorContext(r.Context(), "http.internal_error", slog.Any("error", err))

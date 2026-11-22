@@ -46,7 +46,6 @@ export default defineConfig({
         APP_ENV: 'test',
         LLM_PROVIDER: 'stub',
         STUB_LLM_DELAY: '1s',
-        DAILY_UPLOAD_LIMIT: '1000',
         LOG_LEVEL: 'warn',
       },
     },

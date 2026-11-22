@@ -5,7 +5,7 @@
     "questions": {
       "type": "array",
       "minItems": 5,
-      "maxItems": 30,
+      "description": "Exactly the number of questions the instructions ask for.",
       "items": {
         "type": "object",
         "required": ["type", "prompt", "options", "correctIndices", "explanation"],
@@ -13,7 +13,7 @@
           "type": {
             "type": "string",
             "enum": ["mcq", "true_false", "mrq"],
-            "description": "mcq: exactly 4 options, 1 correct. true_false: options [\"True\",\"False\"], 1 correct. mrq: 3-5 options, at least 2 correct and at least 1 incorrect."
+            "description": "Question format; the rules for each type are in the instructions."
           },
           "prompt": { "type": "string", "description": "The question text, answerable from the document alone." },
           "options": {

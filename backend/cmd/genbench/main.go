@@ -48,7 +48,7 @@ func main() {
 func run(stdout io.Writer) error {
 	dir := flag.String("dir", "testdata/pdfs", "directory of PDF fixtures")
 	runs := flag.Int("runs", 3, "runs per file and strategy")
-	count := flag.Int("count", 10, "questions per run (5-30, multiple of 5)")
+	count := flag.Int("count", 10, "questions per run (5-20, multiple of 5)")
 	strategies := flag.String("strategies", domain.StrategyPDFNative+","+domain.StrategyTextExtract, "comma-separated strategies")
 	model := flag.String("model", gemini.DefaultModel, "Gemini model")
 	sleep := flag.Duration("sleep", 7*time.Second, "pause between calls (free tier is ~10 requests/minute)")

@@ -69,13 +69,13 @@ Topic 1 ──< Chapter 1 ── 1 QuestionSet 1 ──< Question
 - **Why `Chapter 1──< Job` (not 1:1):** allows retries/regeneration later without schema change.
 
 ### QuestionSpec (value object)
-- **What:** `Count (5..30, multiple of 5), TypeMix`.
-- **Why:** the "multiple of 5 between 5 and 30" rule is needed at upload, in the job, in the LLM prompt and when validating output — one type means one place for the rule.
+- **What:** `Count (5..20, multiple of 5), TypeMix`.
+- **Why:** the "multiple of 5 between 5 and 20" rule is needed at upload, in the job, in the LLM prompt and when validating output — one type means one place for the rule.
 
 ### QuestionSet (aggregate root) + Question (entity inside)
 - **What:** the chapter's bank. `ID, ChapterID, Questions[]`.
 - **Why QuestionSet is the root:** invariants span the **collection** — exact count equals the spec, unique positions, every question valid. Questions are created together from one LLM response and never edited individually (v1), so they share one consistency boundary.
-- **Why the factory is the anti-corruption layer:** `NewQuestionSet(chapterID, spec, drafts)` is the only way LLM output becomes domain data. The JSON schema guarantees *shape*; the factory guarantees *meaning* (MCQ/TF one answer, MRQ 3–5 options with 2..(options−1) correct, indices in range, no duplicate options, TF options exactly True/False). Swapping LLMs can't weaken these rules.
+- **Why the factory is the anti-corruption layer:** `NewQuestionSet(chapterID, spec, drafts)` is the only way LLM output becomes domain data. The JSON schema guarantees *shape*; the factory guarantees *meaning* (MCQ/TF one answer, MRQ 3–5 options with at least 1 correct, indices in range, no duplicate options, TF options exactly True/False). Swapping LLMs can't weaken these rules.
 - **Why immutable:** attempts reference question IDs; if questions could change, past scores would silently become wrong.
 - **Why Question is an entity (has ID) and not a value object:** attempts and selection history refer to specific questions over time ("previously wrong"), which requires stable identity.
 - **Why `Grade()` lives on Question:** grading depends only on the question's type and correct answer — behaviour next to data, no type-switching scattered across services.

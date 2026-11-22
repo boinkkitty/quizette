@@ -45,7 +45,7 @@ func newEnv(t *testing.T, script ...func(app.GenerateInput) (app.GenerationResul
 	}
 	e.gen = &apptest.Generator{Script: script}
 	e.queue = &apptest.SyncQueue{}
-	e.genS = &app.GenerationService{Deps: e.deps, Generator: e.gen, Queue: e.queue, Config: app.GenerationConfig{DailyLimit: 3, MaxRetries: 1}}
+	e.genS = &app.GenerationService{Deps: e.deps, Generator: e.gen, Queue: e.queue, Config: app.GenerationConfig{MaxRetries: 1}}
 	e.queue.Handler = e.genS.ProcessJob
 	e.lib = &app.LibraryService{Deps: e.deps}
 	e.prac = &app.PracticeService{Deps: e.deps}
@@ -117,20 +117,6 @@ func TestUploadValidation(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestUploadRateLimit(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t)
-	for range 3 {
-		e.upload(t, "u1", 5)
-	}
-	_, err := e.genS.UploadDocument(context.Background(), app.UploadCommand{OwnerID: "u1", NewTopicName: "B", Count: 5, Data: pdf})
-	if !errors.Is(err, domain.ErrRateLimited) {
-		t.Fatalf("want ErrRateLimited, got %v", err)
-	}
-	e.clock.Advance(25 * time.Hour)
-	e.upload(t, "u1", 5)
 }
 
 func TestProcessRetriesOnInvalidOutputThenSucceeds(t *testing.T) {

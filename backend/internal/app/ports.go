@@ -100,7 +100,6 @@ type ProcessingJobRepository interface {
 	GetByID(ctx context.Context, id domain.ID) (domain.ProcessingJob, error)
 	LatestForChapter(ctx context.Context, ownerID, chapterID domain.ID) (domain.ProcessingJob, error)
 	Update(ctx context.Context, j domain.ProcessingJob) error
-	CountSince(ctx context.Context, ownerID domain.ID, since time.Time) (int, error)
 	ListUnfinished(ctx context.Context) ([]domain.ProcessingJob, error)
 }
 

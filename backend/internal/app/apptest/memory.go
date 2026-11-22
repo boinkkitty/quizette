@@ -293,18 +293,6 @@ func (r jobRepo) Update(_ context.Context, j domain.ProcessingJob) error {
 	return nil
 }
 
-func (r jobRepo) CountSince(_ context.Context, owner domain.ID, since time.Time) (int, error) {
-	r.s.mu.Lock()
-	defer r.s.mu.Unlock()
-	n := 0
-	for _, j := range r.s.jobs {
-		if j.OwnerID == owner && !j.QueuedAt.Before(since) {
-			n++
-		}
-	}
-	return n, nil
-}
-
 func (r jobRepo) ListUnfinished(_ context.Context) ([]domain.ProcessingJob, error) {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()

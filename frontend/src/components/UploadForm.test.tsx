@@ -9,10 +9,10 @@ import { UploadForm } from './UploadForm'
 const pdf = () => new File(['%PDF-1.4'], 'cells.pdf', { type: 'application/pdf' })
 
 describe('UploadForm', () => {
-  it('offers question counts 5-30 in steps of 5', () => {
+  it('offers question counts 5-20 in steps of 5', () => {
     render(<UploadForm topics={topics} pending={false} onSubmit={vi.fn<(input: UploadInput) => void>()} />)
     const select = screen.getByRole('combobox', { name: 'Questions to generate' })
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['5', '10', '15', '20', '25', '30'])
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['5', '10', '15', '20'])
   })
 
   it('rejects non-PDF files and requires a file', async () => {

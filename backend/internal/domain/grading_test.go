@@ -8,6 +8,8 @@ func TestGrade(t *testing.T) {
 	tf := Question{Type: TrueFalse, Options: TrueFalseOptions, Correct: []int{0}}
 	mrq4 := Question{Type: MRQ, Options: []string{"a", "b", "c", "d"}, Correct: []int{0, 2}}
 	mrq5 := Question{Type: MRQ, Options: []string{"a", "b", "c", "d", "e"}, Correct: []int{0, 1, 3}}
+	mrq1 := Question{Type: MRQ, Options: []string{"a", "b", "c"}, Correct: []int{1}}
+	mrqAll := Question{Type: MRQ, Options: []string{"a", "b", "c"}, Correct: []int{0, 1, 2}}
 
 	tests := []struct {
 		name     string
@@ -31,7 +33,14 @@ func TestGrade(t *testing.T) {
 		{"mrq only wrong floors at zero", mrq4, []int{1, 3}, Score{0, false}},
 		{"mrq 3 correct, 2 right", mrq5, []int{0, 1}, Score{0.6667, false}},
 		{"mrq 3 correct, all right + 1 wrong", mrq5, []int{0, 1, 3, 4}, Score{0.6667, false}},
+		{"mrq 3 of 5 correct, select all: (3-2)/3", mrq5, []int{0, 1, 2, 3, 4}, Score{0.3333, false}},
+		{"mrq 3 of 5 correct, unticked correct earn nothing", mrq5, []int{0}, Score{0.3333, false}},
 		{"mrq out of range ignored", mrq4, []int{0, 2, 9, -1}, Score{1, true}},
+		{"mrq single correct, exact", mrq1, []int{1}, Score{1, true}},
+		{"mrq single correct, plus a wrong pick", mrq1, []int{1, 0}, Score{0, false}},
+		{"mrq single correct, select all", mrq1, []int{0, 1, 2}, Score{0, false}},
+		{"mrq all correct, select all", mrqAll, []int{0, 1, 2}, Score{1, true}},
+		{"mrq all correct, two of three", mrqAll, []int{0, 2}, Score{0.6667, false}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

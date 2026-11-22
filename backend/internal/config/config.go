@@ -29,10 +29,9 @@ type Config struct {
 	GeminiThinkingBudget *int32
 	StubLLMDelay         time.Duration
 
-	DailyUploadLimit int
-	JobWorkers       int
-	JobQueueSize     int
-	JobTimeout       time.Duration
+	JobWorkers   int
+	JobQueueSize int
+	JobTimeout   time.Duration
 
 	GoogleClientID, GoogleClientSecret string
 	GitHubClientID, GitHubClientSecret string
@@ -84,10 +83,9 @@ func Load(getenv func(string) string) (Config, error) {
 		Version:            str("RENDER_GIT_COMMIT", str("VERSION", "dev")),
 		LLMProvider:        str("LLM_PROVIDER", "gemini"),
 		GeminiAPIKey:       str("GEMINI_API_KEY", ""),
-		GeminiModel:        str("GEMINI_MODEL", "gemini-2.5-flash"),
+		GeminiModel:        str("GEMINI_MODEL", "gemini-3.8-flash"),
 		GenerationStrategy: str("GENERATION_STRATEGY", domain.StrategyPDFNative),
 		StubLLMDelay:       dur("STUB_LLM_DELAY", 0),
-		DailyUploadLimit:   num("DAILY_UPLOAD_LIMIT", 10),
 		JobWorkers:         num("JOB_WORKERS", 2),
 		JobQueueSize:       num("JOB_QUEUE_SIZE", 20),
 		JobTimeout:         dur("JOB_TIMEOUT", 3*time.Minute),

@@ -34,8 +34,11 @@ func TestNewQuestion(t *testing.T) {
 		{"mrq 5 options 4 correct", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Options = []string{"a", "b", "c", "d", "e"}; d.Correct = []int{0, 1, 2, 3} }), false},
 		{"mrq 2 options", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Options = []string{"a", "b"}; d.Correct = []int{0, 1} }), true},
 		{"mrq 6 options", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Options = []string{"a", "b", "c", "d", "e", "f"} }), true},
-		{"mrq single correct", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Correct = []int{0} }), true},
-		{"mrq all correct", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Correct = []int{0, 1, 2, 3} }), true},
+		{"mrq single correct", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Correct = []int{0} }), false},
+		{"mrq 3 options 1 correct", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Options = []string{"a", "b", "c"}; d.Correct = []int{2} }), false},
+		{"mrq no correct", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Correct = []int{} }), true},
+		{"mrq all correct", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Correct = []int{0, 1, 2, 3} }), false},
+		{"mrq duplicate correct index", mod(validDraft(MRQ), func(d *QuestionDraft) { d.Correct = []int{0, 0} }), true},
 		{"mcq 3 options", mod(validDraft(MCQ), func(d *QuestionDraft) { d.Options = []string{"a", "b", "c"} }), true},
 		{"mcq two correct", mod(validDraft(MCQ), func(d *QuestionDraft) { d.Correct = []int{0, 1} }), true},
 		{"mcq index out of range", mod(validDraft(MCQ), func(d *QuestionDraft) { d.Correct = []int{4} }), true},
@@ -88,12 +91,12 @@ func drafts(n int) []QuestionDraft {
 
 func TestNewQuestionSpec(t *testing.T) {
 	t.Parallel()
-	for _, n := range []int{5, 10, 15, 20, 25, 30} {
+	for _, n := range []int{5, 10, 15, 20} {
 		if _, err := NewQuestionSpec(n, nil); err != nil {
 			t.Errorf("count %d: %v", n, err)
 		}
 	}
-	for _, n := range []int{0, 4, 6, 35, -5} {
+	for _, n := range []int{0, 4, 6, 25, 30, -5} {
 		if _, err := NewQuestionSpec(n, nil); err == nil {
 			t.Errorf("count %d: want error", n)
 		}

@@ -15,7 +15,6 @@ import (
 
 // GenerationConfig tunes the generation service.
 type GenerationConfig struct {
-	DailyLimit int           // max uploads per user per 24h; 0 = unlimited
 	MaxRetries int           // validation retries (default 1)
 	JobTimeout time.Duration // per-job deadline
 }
@@ -66,16 +65,6 @@ func (s *GenerationService) UploadDocument(ctx context.Context, cmd UploadComman
 	}
 
 	now := s.Clock.Now()
-	if s.Config.DailyLimit > 0 {
-		n, err := s.Repos.Jobs.CountSince(ctx, cmd.OwnerID, now.Add(-24*time.Hour))
-		if err != nil {
-			return UploadResult{}, err
-		}
-		if n >= s.Config.DailyLimit {
-			return UploadResult{}, fmt.Errorf("%w: at most %d uploads per day", domain.ErrRateLimited, s.Config.DailyLimit)
-		}
-	}
-
 	var res UploadResult
 	err = s.UoW.Do(ctx, func(r Repos) error {
 		topic, err := resolveTopic(ctx, r, s.IDs, cmd, now)
