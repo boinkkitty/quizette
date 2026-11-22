@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "required": ["questions"],
+  "properties": {
+    "questions": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "required": ["type", "prompt", "options", "correctIndices", "explanation"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["mcq", "true_false", "mrq"],
+            "description": "mcq: exactly 4 options, 1 correct. true_false: options [\"True\",\"False\"], 1 correct. mrq: 3-5 options, at least 2 correct and at least 1 incorrect."
+          },
+          "prompt": { "type": "string", "description": "The question text, answerable from the document alone." },
+          "options": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 2,
+            "maxItems": 5
+          },
+          "correctIndices": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 0 },
+            "minItems": 1,
+            "description": "Zero-based indices into options."
+          },
+          "explanation": { "type": "string", "description": "Why the correct answer(s) are correct, citing the document." },
+          "sourceHint": { "type": "string", "description": "Section or page the question is drawn from." }
+        }
+      }
+    }
+  }
+}

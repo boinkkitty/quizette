@@ -1,0 +1,17 @@
+# Go
+backend/genbench-results.csv
+backend/testdata/pdfs/*.pdf
+!backend/testdata/pdfs/sample-cells.pdf
+# Node
+node_modules/
+dist/
+.wrangler/
+frontend/src/routeTree.gen.ts
+e2e/test-results/
+e2e/playwright-report/
+# Env
+.env
+.env.*
+!.env.example
+.dev.vars
+.DS_Store

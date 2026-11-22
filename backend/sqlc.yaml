@@ -1,0 +1,34 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: queries
+    gen:
+      go:
+        package: sqlcgen
+        out: internal/adapters/postgres/sqlcgen
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: uuid
+            go_type: string
+          - db_type: uuid
+            go_type:
+              type: string
+              pointer: true
+            nullable: true
+          - db_type: citext
+            go_type: string
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            go_type:
+              import: time
+              type: Time
+              pointer: true
+            nullable: true
+          - db_type: jsonb
+            go_type: string
+          - db_type: pg_catalog.numeric
+            go_type: float64

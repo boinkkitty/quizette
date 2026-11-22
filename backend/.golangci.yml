@@ -1,0 +1,96 @@
+version: "2"
+
+run:
+  build-tags: [integration]
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - contextcheck
+    - depguard
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - misspell
+    - noctx
+    - nolintlint
+    - revive
+    - rowserrcheck
+    - sloglint
+    - sqlclosecheck
+    - unparam
+    - wrapcheck
+  settings:
+    depguard:
+      rules:
+        domain:
+          list-mode: strict
+          files: ["**/internal/domain/**"]
+          allow: [$gostd]
+        app:
+          list-mode: lax
+          files: ["**/internal/app/**", "!**/internal/app/apptest/**"]
+          deny:
+            - pkg: github.com/boinkkitty/quizette/backend/internal/adapters
+              desc: app must depend on ports, not adapters
+            - pkg: github.com/jackc/pgx
+              desc: database access belongs in adapters/postgres
+            - pkg: github.com/go-chi
+              desc: HTTP belongs in adapters/http
+            - pkg: google.golang.org/genai
+              desc: LLM SDKs belong in adapters/llm
+            - pkg: golang.org/x/oauth2
+              desc: OAuth belongs in adapters/oauth
+    exhaustive:
+      default-signifies-exhaustive: true
+    sloglint:
+      kv-only: false
+      attr-only: true
+      no-global: default
+      context: scope
+      static-msg: true
+      key-naming-case: snake
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: indent-error-flow
+        - name: unused-parameter
+          disabled: true
+    wrapcheck:
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Join(
+        - domain.Invalid(
+        - .Do(
+    gosec:
+      excludes: [G104] # covered by errcheck
+  exclusions:
+    generated: strict
+    presets: [std-error-handling]
+    paths:
+      - internal/adapters/postgres/sqlcgen
+    rules:
+      # wrapcheck only matters at adapter boundaries.
+      - path: internal/(domain|app|config)/
+        linters: [wrapcheck]
+      - path: _test\.go
+        linters: [wrapcheck, gosec, noctx, unparam, revive, errorlint]
+      - path: cmd/
+        linters: [wrapcheck]
+      # chi middleware rebinds r.Context() by design.
+      - path: internal/adapters/http/middleware.go
+        linters: [contextcheck]
+
+formatters:
+  enable: [gofumpt, goimports]
+  settings:
+    goimports:
+      local-prefixes: [github.com/boinkkitty/quizette]
+  exclusions:
+    paths:
+      - internal/adapters/postgres/sqlcgen
