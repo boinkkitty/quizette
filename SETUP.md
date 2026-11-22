@@ -49,6 +49,8 @@ The app has never made a real Gemini call. The main unknown is whether Gemini ac
 
 If the test fails with a schema error, the schema is in `backend/internal/app/question_set.schema.json`.
 
+Which model to use, and what worked on the free tier: see [docs/research/llm-models.md](docs/research/llm-models.md). `gemini-3.6-flash` is the current recommendation; the code default `gemini-3.8-flash` was often overloaded.
+
 ## 3. Generation-strategy benchmark
 
 This decides whether we send the PDF itself to Gemini (`pdf-native`, the current default) or text we extract first (`text-extract`). The benchmark measures time and tokens for both.
