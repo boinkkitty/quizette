@@ -49,6 +49,10 @@ jobs:
         working-directory: frontend
       - run: pnpm build
         working-directory: frontend
+      # The route tree is committed so tsc can run before Vite; the build regenerates it.
+      - name: Generated route tree is up to date
+        run: git diff --exit-code -- src/routeTree.gen.ts
+        working-directory: frontend
       - run: pnpm install --frozen-lockfile && pnpm typecheck && pnpm exec wrangler deploy --dry-run
         working-directory: worker
 

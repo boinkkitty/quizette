@@ -6,7 +6,6 @@ backend/testdata/pdfs/*.pdf
 node_modules/
 dist/
 .wrangler/
-frontend/src/routeTree.gen.ts
 e2e/test-results/
 e2e/playwright-report/
 # Env
