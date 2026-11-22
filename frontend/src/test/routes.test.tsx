@@ -16,6 +16,19 @@ describe('routing', () => {
     expect(await screen.findByRole('link', { name: 'Continue with GitHub' })).toHaveAttribute('href', '/api/auth/github/start')
   })
 
+  it('shows Google before GitHub whatever order the API lists them', async () => {
+    server.use(
+      http.get('/api/auth/me', unauthorized),
+      http.get('/api/auth/providers', () => HttpResponse.json({ providers: ['github', 'google'] })),
+    )
+    renderApp('/login')
+    const github = await screen.findByRole('link', { name: 'Continue with GitHub' })
+    const links = screen.getAllByRole('link', { name: /^Continue with/ })
+    expect(links.map((l) => l.textContent)).toEqual(['Continue with Google', 'Continue with GitHub'])
+    expect(links[0]).toHaveAttribute('href', '/api/auth/google/start')
+    expect(github).toHaveAttribute('href', '/api/auth/github/start')
+  })
+
   it('logs in and lands on the requested page', async () => {
     let loggedIn = false
     server.use(

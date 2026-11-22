@@ -10,12 +10,10 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 
 import { providersQuery, useAuthMutation } from '../api/queries'
-import type { OAuthProvider } from '../api/schemas'
 import { ErrorMessage } from './ErrorMessage'
 import { Field } from './Field'
+import { OAuthButtons } from './OAuthButton'
 import { Spinner } from './Spinner'
-
-const providerLabel: Record<OAuthProvider, string> = { google: 'Continue with Google', github: 'Continue with GitHub' }
 
 export function AuthForm({ mode, redirect, oauthError }: { mode: 'login' | 'signup'; redirect: string; oauthError?: string | undefined }) {
   const navigate = useNavigate()
@@ -42,17 +40,13 @@ export function AuthForm({ mode, redirect, oauthError }: { mode: 'login' | 'sign
           <CardDescription>{mode === 'login' ? 'Welcome back. Pick up where you left off.' : 'Turn any PDF into a practice quiz.'}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-        {oauthError !== undefined && (
+          {oauthError !== undefined && (
           <Alert variant="destructive">
             <CircleAlertIcon />
             <AlertDescription>{oauthError}</AlertDescription>
           </Alert>
         )}
-        {(providers?.providers ?? []).map((p) => (
-          <Button key={p} variant="outline" size="lg" className="w-full" asChild>
-            <a href={`/api/auth/${p}/start`}>{providerLabel[p]}</a>
-          </Button>
-        ))}
+        {(providers?.providers.length ?? 0) > 0 && <OAuthButtons enabled={providers?.providers ?? []} />}
         {(providers?.providers.length ?? 0) > 0 && (
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <Separator className="flex-1" /> or <Separator className="flex-1" />
@@ -61,29 +55,26 @@ export function AuthForm({ mode, redirect, oauthError }: { mode: 'login' | 'sign
         <form onSubmit={onSubmit} className="space-y-4">
           {mode === 'signup' && (
             <Field label="Name">
-{(c) => (
-<Input {...c} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-)}
-</Field>
+              {(c) => <Input {...c} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />}
+            </Field>
           )}
           <Field label="Email">
-{(c) => (
-<Input {...c} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-)}
-</Field>
+            {(c) => <Input {...c} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />}
+          </Field>
           <Field label="Password" {...(mode === 'signup' ? { hint: '8–72 characters' } : {})}>
-{(c) => (
-<Input {...c}
-              type="password"
-              required
-              minLength={mode === 'signup' ? 8 : undefined}
-              maxLength={72}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            />
-)}
-</Field>
+            {(c) => (
+              <Input
+                {...c}
+                type="password"
+                required
+                minLength={mode === 'signup' ? 8 : undefined}
+                maxLength={72}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              />
+            )}
+          </Field>
           {auth.isError && <ErrorMessage error={auth.error} title={mode === 'login' ? 'Could not log in' : 'Could not sign up'} />}
           <Button type="submit" size="lg" className="w-full" disabled={auth.isPending}>
             {auth.isPending && <Spinner />} {mode === 'login' ? 'Log in' : 'Sign up'}
