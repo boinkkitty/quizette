@@ -9,7 +9,14 @@ describe('QuizRunner', () => {
   it('uses radios for MCQ/TF, checkboxes for MRQ, and submits responses', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn<(r: Responses) => void>()
-    render(<QuizRunner attemptId="a1" questions={attempt().questions} submitting={false} onSubmit={onSubmit} />)
+    render(
+      <QuizRunner
+        attemptId="a1"
+        questions={attempt().questions}
+        submitting={false}
+        onSubmit={onSubmit}
+      />,
+    )
 
     expect(screen.getAllByRole('radio')).toHaveLength(4)
     await user.click(screen.getByRole('radio', { name: 'Mitochondria' }))
@@ -28,13 +35,24 @@ describe('QuizRunner', () => {
     await user.click(screen.getByRole('button', { name: 'Submit quiz' }))
 
     const responses = onSubmit.mock.calls[0]?.[0]
-    expect(responses === undefined ? undefined : Object.fromEntries(responses)).toEqual({ q1: [1], q2: [0], q3: [0, 2] })
+    expect(responses === undefined ? undefined : Object.fromEntries(responses)).toEqual({
+      q1: [1],
+      q2: [0],
+      q3: [0, 2],
+    })
   })
 
   it('keeps answers when navigating back and warns about unanswered questions', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn<(r: Responses) => void>()
-    render(<QuizRunner attemptId="a1" questions={attempt().questions} submitting={false} onSubmit={onSubmit} />)
+    render(
+      <QuizRunner
+        attemptId="a1"
+        questions={attempt().questions}
+        submitting={false}
+        onSubmit={onSubmit}
+      />,
+    )
     await user.click(screen.getByRole('radio', { name: 'Golgi' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Previous' }))
@@ -60,13 +78,27 @@ describe('QuizRunner progress after a reload', () => {
   it('restores answers and position for the same attempt, but not for another', async () => {
     window.sessionStorage.clear()
     const user = userEvent.setup()
-    const first = render(<QuizRunner attemptId="a1" questions={attempt().questions} submitting={false} onSubmit={vi.fn<(r: Responses) => void>()} />)
+    const first = render(
+      <QuizRunner
+        attemptId="a1"
+        questions={attempt().questions}
+        submitting={false}
+        onSubmit={vi.fn<(r: Responses) => void>()}
+      />,
+    )
     await user.click(screen.getByRole('radio', { name: 'Mitochondria' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('radio', { name: 'False' }))
     first.unmount() // the page reloads
 
-    const second = render(<QuizRunner attemptId="a1" questions={attempt().questions} submitting={false} onSubmit={vi.fn<(r: Responses) => void>()} />)
+    const second = render(
+      <QuizRunner
+        attemptId="a1"
+        questions={attempt().questions}
+        submitting={false}
+        onSubmit={vi.fn<(r: Responses) => void>()}
+      />,
+    )
     expect(screen.getByText('Question 2 of 3')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'False' })).toBeChecked()
     expect(screen.getByText('2 answered')).toBeInTheDocument()
@@ -74,7 +106,14 @@ describe('QuizRunner progress after a reload', () => {
     expect(screen.getByRole('radio', { name: 'Mitochondria' })).toBeChecked()
     second.unmount()
 
-    render(<QuizRunner attemptId="a2" questions={attempt().questions} submitting={false} onSubmit={vi.fn<(r: Responses) => void>()} />)
+    render(
+      <QuizRunner
+        attemptId="a2"
+        questions={attempt().questions}
+        submitting={false}
+        onSubmit={vi.fn<(r: Responses) => void>()}
+      />,
+    )
     expect(screen.getByText('Question 1 of 3')).toBeInTheDocument()
     expect(screen.getByText('0 answered')).toBeInTheDocument()
   })

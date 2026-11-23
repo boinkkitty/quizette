@@ -44,7 +44,11 @@ function QuizChaptersPage() {
       />
       {chapters.length === 0 ? (
         <EmptyState title="No chapters ready in this topic">
-          <Link to="/upload" search={{ topicId }} className="font-medium text-primary hover:underline">
+          <Link
+            to="/upload"
+            search={{ topicId }}
+            className="font-medium text-primary hover:underline"
+          >
             Upload a PDF
           </Link>{' '}
           to add one.
@@ -54,7 +58,11 @@ function QuizChaptersPage() {
           {chapters.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
               <div className="min-w-0">
-                <Link to="/chapters/$chapterId" params={{ chapterId: c.id }} className="font-medium hover:text-primary hover:underline">
+                <Link
+                  to="/chapters/$chapterId"
+                  params={{ chapterId: c.id }}
+                  className="font-medium hover:text-primary hover:underline"
+                >
                   {c.title}
                 </Link>
                 <p className="mt-0.5 text-sm text-muted-foreground">
@@ -64,12 +72,20 @@ function QuizChaptersPage() {
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" asChild>
-                  <Link to="/chapters/$chapterId/questions" params={{ chapterId: c.id }} aria-label={`View questions: ${c.title}`}>
+                  <Link
+                    to="/chapters/$chapterId/questions"
+                    params={{ chapterId: c.id }}
+                    aria-label={`View questions: ${c.title}`}
+                  >
                     <EyeIcon aria-hidden /> View questions
                   </Link>
                 </Button>
                 <Button asChild>
-                  <Link to="/chapters/$chapterId" params={{ chapterId: c.id }} aria-label={`Start quiz: ${c.title}`}>
+                  <Link
+                    to="/chapters/$chapterId"
+                    params={{ chapterId: c.id }}
+                    aria-label={`Start quiz: ${c.title}`}
+                  >
                     Start quiz
                   </Link>
                 </Button>

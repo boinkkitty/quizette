@@ -9,7 +9,11 @@ describe('request', () => {
   it('sends the CSRF header on every mutation, and never an Authorization header', async () => {
     const seen: Array<{ csrf: string | null; auth: string | null; credentials: string }> = []
     const record = ({ request: req }: { request: Request }) => {
-      seen.push({ csrf: req.headers.get('X-Requested-With'), auth: req.headers.get('Authorization'), credentials: req.credentials })
+      seen.push({
+        csrf: req.headers.get('X-Requested-With'),
+        auth: req.headers.get('Authorization'),
+        credentials: req.credentials,
+      })
       return HttpResponse.json({ ok: true })
     }
     server.use(http.all('/api/echo', record), http.post('/api/auth/echo', record))
@@ -36,10 +40,24 @@ describe('request', () => {
   })
 
   it('maps error bodies to ApiError with problems', async () => {
-    server.use(http.post('/api/fail', () => HttpResponse.json({ error: 'validation', message: 'bad count', problems: ['bad count'] }, { status: 400 })))
-    const err = await request(z.object({}), '/fail', { method: 'POST', json: {} }).catch((e: unknown) => e)
+    server.use(
+      http.post('/api/fail', () =>
+        HttpResponse.json(
+          { error: 'validation', message: 'bad count', problems: ['bad count'] },
+          { status: 400 },
+        ),
+      ),
+    )
+    const err = await request(z.object({}), '/fail', { method: 'POST', json: {} }).catch(
+      (e: unknown) => e,
+    )
     expect(err).toBeInstanceOf(ApiError)
-    expect(err).toMatchObject({ status: 400, code: 'validation', message: 'bad count', problems: ['bad count'] })
+    expect(err).toMatchObject({
+      status: 400,
+      code: 'validation',
+      message: 'bad count',
+      problems: ['bad count'],
+    })
   })
 
   it('rejects responses that violate the schema', async () => {

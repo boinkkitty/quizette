@@ -41,8 +41,12 @@ export function ServerWakeBanner({ delayMs = 2500 }: { delayMs?: number }) {
 
   if (state !== 'slow') return null
   return (
-    <div role="status" className="flex items-center justify-center gap-2 border-b border-primary/15 bg-secondary px-4 py-2 text-sm text-secondary-foreground">
-      <Spinner className="size-3" /> Waking up the server — this can take up to a minute after a period of inactivity.
+    <div
+      role="status"
+      className="flex items-center justify-center gap-2 border-b border-primary/15 bg-secondary px-4 py-2 text-sm text-secondary-foreground"
+    >
+      <Spinner className="size-3" /> Waking up the server — this can take up to a minute after a
+      period of inactivity.
     </div>
   )
 }

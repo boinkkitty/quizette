@@ -36,13 +36,20 @@ interface Props {
 const optionClass = (checked: boolean) =>
   cn(
     'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm font-normal transition-colors',
-    checked ? 'border-primary bg-secondary text-secondary-foreground' : 'border-border hover:bg-muted',
+    checked
+      ? 'border-primary bg-secondary text-secondary-foreground'
+      : 'border-border hover:bg-muted',
   )
 
 /** One question per screen. MCQ / True-False use radios; MRQ uses checkboxes. */
 export function QuizRunner({ attemptId, questions, submitting, onSubmit }: Props) {
   const idPrefix = useId()
-  const [saved] = useState(() => loadQuizProgress(attemptId, questions.map((q) => q.id)))
+  const [saved] = useState(() =>
+    loadQuizProgress(
+      attemptId,
+      questions.map((q) => q.id),
+    ),
+  )
   const [index, setIndex] = useState(saved.index)
   const [responses, setResponses] = useState<Map<string, number[]>>(saved.responses)
   // Keep the saved copy in step with every answer and page change.
@@ -64,7 +71,11 @@ export function QuizRunner({ attemptId, questions, submitting, onSubmit }: Props
     setResponses((prev) => new Map(prev).set(question.id, next))
   }
   const toggle = (option: number) => {
-    setAnswer(selected.includes(option) ? selected.filter((o) => o !== option) : [...selected, option].sort((a, b) => a - b))
+    setAnswer(
+      selected.includes(option)
+        ? selected.filter((o) => o !== option)
+        : [...selected, option].sort((a, b) => a - b),
+    )
   }
 
   const submit = () => {
@@ -83,19 +94,37 @@ export function QuizRunner({ attemptId, questions, submitting, onSubmit }: Props
         </span>
         <span>{answered} answered</span>
       </div>
-      <Progress value={((index + 1) / questions.length) * 100} aria-label="Quiz progress" className="h-1.5" />
+      <Progress
+        value={((index + 1) / questions.length) * 100}
+        aria-label="Quiz progress"
+        className="h-1.5"
+      />
 
       <Card>
         <CardContent className="space-y-4">
-          <p className="text-xs font-medium tracking-wide text-primary uppercase">{questionTypeLabel[question.type]}</p>
+          <p className="text-xs font-medium tracking-wide text-primary uppercase">
+            {questionTypeLabel[question.type]}
+          </p>
           <fieldset>
             <legend className="text-lg font-medium">{question.prompt}</legend>
-            {multi && <p className="mt-1 text-sm text-muted-foreground">Select all that apply. Wrong picks cancel out right ones.</p>}
+            {multi && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Select all that apply. Wrong picks cancel out right ones.
+              </p>
+            )}
             {multi ? (
               <div className="mt-4 grid gap-2">
                 {question.options.map((opt, i) => (
-                  <Label key={opt} htmlFor={optionId(i)} className={optionClass(selected.includes(i))}>
-                    <Checkbox id={optionId(i)} checked={selected.includes(i)} onCheckedChange={() => toggle(i)} />
+                  <Label
+                    key={opt}
+                    htmlFor={optionId(i)}
+                    className={optionClass(selected.includes(i))}
+                  >
+                    <Checkbox
+                      id={optionId(i)}
+                      checked={selected.includes(i)}
+                      onCheckedChange={() => toggle(i)}
+                    />
                     {opt}
                   </Label>
                 ))}
@@ -108,7 +137,11 @@ export function QuizRunner({ attemptId, questions, submitting, onSubmit }: Props
                 onValueChange={(v) => setAnswer([Number(v)])}
               >
                 {question.options.map((opt, i) => (
-                  <Label key={opt} htmlFor={optionId(i)} className={optionClass(selected.includes(i))}>
+                  <Label
+                    key={opt}
+                    htmlFor={optionId(i)}
+                    className={optionClass(selected.includes(i))}
+                  >
                     <RadioGroupItem id={optionId(i)} value={String(i)} />
                     {opt}
                   </Label>
@@ -120,7 +153,12 @@ export function QuizRunner({ attemptId, questions, submitting, onSubmit }: Props
       </Card>
 
       <div className="flex justify-between">
-        <Button variant="outline" size="lg" disabled={index === 0} onClick={() => setIndex((i) => i - 1)}>
+        <Button
+          variant="outline"
+          size="lg"
+          disabled={index === 0}
+          onClick={() => setIndex((i) => i - 1)}
+        >
           Previous
         </Button>
         {isLast ? (
@@ -139,7 +177,8 @@ export function QuizRunner({ attemptId, questions, submitting, onSubmit }: Props
           <AlertDialogHeader>
             <AlertDialogTitle>Submit with unanswered questions?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have {unanswered} unanswered question{unanswered === 1 ? '' : 's'}. They will score 0.
+              You have {unanswered} unanswered question{unanswered === 1 ? '' : 's'}. They will
+              score 0.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -11,13 +11,19 @@ describe('routing', () => {
   it('recovers the failed route when the server wakes after a 502', async () => {
     let awake = false
     server.use(
-      http.get('/api/auth/me', () => awake ? unauthorized() : new HttpResponse(null, { status: 502 })),
-      http.get('/api/auth/providers', () => awake ? HttpResponse.json({ providers: [] }) : new HttpResponse(null, { status: 502 })),
+      http.get('/api/auth/me', () =>
+        awake ? unauthorized() : new HttpResponse(null, { status: 502 }),
+      ),
+      http.get('/api/auth/providers', () =>
+        awake ? HttpResponse.json({ providers: [] }) : new HttpResponse(null, { status: 502 }),
+      ),
     )
     renderApp('/upload')
     expect(await screen.findByText('Request failed (502)')).toBeInTheDocument()
     awake = true
-    expect(await screen.findByRole('heading', { name: 'Log in to Quizette' }, { timeout: 5000 })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Log in to Quizette' }, { timeout: 5000 }),
+    ).toBeInTheDocument()
   })
 
   it('redirects logged-out users to login, preserving the destination', async () => {
@@ -25,7 +31,10 @@ describe('routing', () => {
     const { router } = renderApp('/upload')
     expect(await screen.findByRole('heading', { name: 'Log in to Quizette' })).toBeInTheDocument()
     expect(router.state.location.search).toEqual({ redirect: '/upload' })
-    expect(await screen.findByRole('link', { name: 'Continue with GitHub' })).toHaveAttribute('href', '/api/auth/github/start')
+    expect(await screen.findByRole('link', { name: 'Continue with GitHub' })).toHaveAttribute(
+      'href',
+      '/api/auth/github/start',
+    )
   })
 
   it('shows Google before GitHub whatever order the API lists them', async () => {
@@ -36,7 +45,10 @@ describe('routing', () => {
     renderApp('/login')
     const github = await screen.findByRole('link', { name: 'Continue with GitHub' })
     const links = screen.getAllByRole('link', { name: /^Continue with/ })
-    expect(links.map((l) => l.textContent)).toEqual(['Continue with Google', 'Continue with GitHub'])
+    expect(links.map((l) => l.textContent)).toEqual([
+      'Continue with Google',
+      'Continue with GitHub',
+    ])
     expect(links[0]).toHaveAttribute('href', '/api/auth/google/start')
     expect(github).toHaveAttribute('href', '/api/auth/github/start')
   })
@@ -62,7 +74,12 @@ describe('routing', () => {
   it('shows login errors from the API', async () => {
     server.use(
       http.get('/api/auth/me', unauthorized),
-      http.post('/api/auth/login', () => HttpResponse.json({ error: 'unauthorized', message: 'invalid email or password' }, { status: 401 })),
+      http.post('/api/auth/login', () =>
+        HttpResponse.json(
+          { error: 'unauthorized', message: 'invalid email or password' },
+          { status: 401 },
+        ),
+      ),
     )
     const u = userEvent.setup()
     renderApp('/login')
@@ -74,8 +91,15 @@ describe('routing', () => {
 
   it('takes a quiz and shows partial MRQ credit on the results page', async () => {
     const submitted: Attempt = attempt({
-      status: 'submitted', totalScore: 2.5, scorePct: 50, submittedAt: '2026-11-20T10:05:00Z',
-      questions: attempt().questions.map((q) => ({ ...q, correct: q.type === 'mrq' ? [0, 2] : [q.type === 'mcq' ? 1 : 0], explanation: 'Because.' })),
+      status: 'submitted',
+      totalScore: 2.5,
+      scorePct: 50,
+      submittedAt: '2026-11-20T10:05:00Z',
+      questions: attempt().questions.map((q) => ({
+        ...q,
+        correct: q.type === 'mrq' ? [0, 2] : [q.type === 'mcq' ? 1 : 0],
+        explanation: 'Because.',
+      })),
       answers: [
         { questionId: 'q1', selected: [1], points: 1, correct: true },
         { questionId: 'q2', selected: [1], points: 0, correct: false },
@@ -106,11 +130,21 @@ describe('routing', () => {
     expect(window.sessionStorage.getItem('quizette:quiz-progress:a1')).toBeNull() // saved progress cleared once submitted
     expect(router.state.location.pathname).toBe('/attempts/a1/results')
     expect(screen.getByText('0.5 / 1 point')).toBeInTheDocument()
-    expect(body).toEqual({ answers: [{ questionId: 'q1', selected: [1] }, { questionId: 'q2', selected: [1] }, { questionId: 'q3', selected: [0] }] })
+    expect(body).toEqual({
+      answers: [
+        { questionId: 'q1', selected: [1] },
+        { questionId: 'q2', selected: [1] },
+        { questionId: 'q3', selected: [0] },
+      ],
+    })
   })
 
   it('redirects a submitted attempt to its results', async () => {
-    server.use(http.get('/api/attempts/a1', () => HttpResponse.json(attempt({ status: 'submitted', submittedAt: '2026-11-20T10:05:00Z' }))))
+    server.use(
+      http.get('/api/attempts/a1', () =>
+        HttpResponse.json(attempt({ status: 'submitted', submittedAt: '2026-11-20T10:05:00Z' })),
+      ),
+    )
     const { router } = renderApp('/attempts/a1')
     await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
   })
@@ -164,12 +198,18 @@ describe('sidebar', () => {
     const nav = await screen.findByRole('navigation', { name: 'Main' })
     const links = within(nav).getAllByRole('link')
     expect(links.map((l) => l.textContent)).toEqual(['Upload', 'Dashboard', 'Quizzes', 'History'])
-    expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
 
     await u.click(within(nav).getByRole('link', { name: 'Quizzes' }))
     expect(await screen.findByRole('heading', { name: 'Quizzes' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/quizzes')
-    expect(within(nav).getByRole('link', { name: 'Quizzes' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Quizzes' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
   })
 
@@ -183,7 +223,7 @@ describe('sidebar', () => {
 })
 
 describe('quizzes', () => {
-  it('shows topic cards counting ready chapters, then the topic\'s ready chapters', async () => {
+  it("shows topic cards counting ready chapters, then the topic's ready chapters", async () => {
     const requested: string[] = []
     server.use(
       http.get('/api/topics', () =>
@@ -197,12 +237,21 @@ describe('quizzes', () => {
         requested.push(url.search)
         // The server filters; return what it would for each query.
         if (url.searchParams.get('topicId') === 't1') {
-          return HttpResponse.json([chapterSummary(), chapterSummary({ id: 'c2', title: 'Genetics', bestScorePct: null })])
+          return HttpResponse.json([
+            chapterSummary(),
+            chapterSummary({ id: 'c2', title: 'Genetics', bestScorePct: null }),
+          ])
         }
         return HttpResponse.json([
           chapterSummary(),
           chapterSummary({ id: 'c2', title: 'Genetics', bestScorePct: null }),
-          chapterSummary({ id: 'c3', topicId: 't2', topicName: 'History', title: 'Rome', bestScorePct: null }),
+          chapterSummary({
+            id: 'c3',
+            topicId: 't2',
+            topicName: 'History',
+            title: 'Rome',
+            bestScorePct: null,
+          }),
         ])
       }),
     )
@@ -218,13 +267,22 @@ describe('quizzes', () => {
     expect(await screen.findByRole('heading', { name: 'Biology' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/quizzes/t1')
     expect(screen.getByText(/10 questions · 2 attempts · best 80%/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Start quiz: Cells' })).toHaveAttribute('href', '/chapters/c1')
-    expect(screen.getByRole('link', { name: 'View questions: Cells' })).toHaveAttribute('href', '/chapters/c1/questions')
+    expect(screen.getByRole('link', { name: 'Start quiz: Cells' })).toHaveAttribute(
+      'href',
+      '/chapters/c1',
+    )
+    expect(screen.getByRole('link', { name: 'View questions: Cells' })).toHaveAttribute(
+      'href',
+      '/chapters/c1/questions',
+    )
     expect(screen.getByRole('link', { name: 'Start quiz: Genetics' })).toBeInTheDocument()
     // Only ready chapters are ever requested.
     expect(requested).toEqual(['?status=ready', '?status=ready&topicId=t1'])
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    expect(within(nav).getByRole('link', { name: 'Quizzes' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Quizzes' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 
   it('points to upload when no chapters are ready', async () => {
@@ -244,18 +302,37 @@ describe('view questions', () => {
     }))
     server.use(
       http.get('/api/chapters/c1', () =>
-        HttpResponse.json({ id: 'c1', title: 'Cells', status: 'ready', topicId: 't1', topicName: 'Biology', questionCount: 3, latestJob: null, createdAt: '2026-11-20T10:00:00Z' }),
+        HttpResponse.json({
+          id: 'c1',
+          title: 'Cells',
+          status: 'ready',
+          topicId: 't1',
+          topicName: 'Biology',
+          questionCount: 3,
+          latestJob: null,
+          createdAt: '2026-11-20T10:00:00Z',
+        }),
       ),
-      http.get('/api/chapters/c1/question-set', () => HttpResponse.json({ id: 's1', chapterId: 'c1', questions })),
+      http.get('/api/chapters/c1/question-set', () =>
+        HttpResponse.json({ id: 's1', chapterId: 'c1', questions }),
+      ),
     )
     const u = userEvent.setup()
     renderApp('/chapters/c1/questions')
 
-    expect(await screen.findByRole('heading', { name: 'Powerhouse of the cell?' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Powerhouse of the cell?' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Question 1 of 3')).toBeInTheDocument()
     // The options are listed but not selectable, and nothing is marked yet.
-    const options = () => within(screen.getByRole('list', { name: 'Options' })).getAllByRole('listitem')
-    expect(options().map((o) => o.textContent)).toEqual(['ANucleus', 'BMitochondria', 'CRibosome', 'DGolgi'])
+    const options = () =>
+      within(screen.getByRole('list', { name: 'Options' })).getAllByRole('listitem')
+    expect(options().map((o) => o.textContent)).toEqual([
+      'ANucleus',
+      'BMitochondria',
+      'CRibosome',
+      'DGolgi',
+    ])
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.queryByText('Correct')).not.toBeInTheDocument()
     expect(screen.queryByText('Why q1.')).not.toBeInTheDocument()
@@ -274,7 +351,9 @@ describe('view questions', () => {
     // MRQ: every correct option is marked.
     await u.click(screen.getByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('button', { name: 'Show answer' }))
-    const marked = options().filter((o) => within(o).queryByText('Correct') !== null).map((o) => o.textContent)
+    const marked = options()
+      .filter((o) => within(o).queryByText('Correct') !== null)
+      .map((o) => o.textContent)
     expect(marked).toEqual(['NucleusCorrect', 'RibosomeCorrect'])
     expect(screen.getByRole('link', { name: 'Done' })).toHaveAttribute('href', '/quizzes/t1')
 
@@ -293,7 +372,15 @@ describe('history page', () => {
     server.use(
       http.get('/api/attempts', () =>
         HttpResponse.json([
-          historyItem({ id: 'a2', status: 'in_progress', totalScore: 0, scorePct: 0, submittedAt: null, chapterTitle: 'Rome', topicName: 'History' }),
+          historyItem({
+            id: 'a2',
+            status: 'in_progress',
+            totalScore: 0,
+            scorePct: 0,
+            submittedAt: null,
+            chapterTitle: 'Rome',
+            topicName: 'History',
+          }),
           historyItem(),
         ]),
       ),
@@ -305,10 +392,16 @@ describe('history page', () => {
     if (inProgress === undefined || done === undefined) throw new Error('missing rows')
     expect(within(inProgress).getByText('Rome')).toBeInTheDocument()
     expect(within(inProgress).getByText('In progress')).toBeInTheDocument()
-    expect(within(inProgress).getByRole('link', { name: 'Resume' })).toHaveAttribute('href', '/attempts/a2')
+    expect(within(inProgress).getByRole('link', { name: 'Resume' })).toHaveAttribute(
+      'href',
+      '/attempts/a2',
+    )
     expect(within(done).getByText('Biology')).toBeInTheDocument()
     expect(done).toHaveTextContent('2.5 / 5 (50%)')
-    expect(within(done).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/attempts/a1/results')
+    expect(within(done).getByRole('link', { name: 'Review' })).toHaveAttribute(
+      'href',
+      '/attempts/a1/results',
+    )
   })
 })
 
@@ -329,7 +422,9 @@ describe('mobile menu', () => {
     }
 
     await u.keyboard('{Escape}')
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument(),
+    )
     expect(openButton).toHaveFocus()
   })
 })

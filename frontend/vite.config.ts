@@ -15,7 +15,11 @@ function required(env: Record<string, string>, key: string): string {
 }
 
 export default defineConfig(({ command, mode }) => {
-  const plugins = [tanstackRouter({ target: 'react', autoCodeSplitting: true }), react(), tailwindcss()]
+  const plugins = [
+    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    react(),
+    tailwindcss(),
+  ]
   const resolve = { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } }
   if (command === 'build') return { plugins, resolve }
 

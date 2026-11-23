@@ -26,7 +26,10 @@ function TakeQuizPage() {
 
   return (
     <>
-      <PageHeader title={attempt.chapterTitle} subtitle={`${String(attempt.count)}-question quiz`} />
+      <PageHeader
+        title={attempt.chapterTitle}
+        subtitle={`${String(attempt.count)}-question quiz`}
+      />
       {submit.isError && <ErrorMessage error={submit.error} title="Could not submit" />}
       <QuizRunner
         key={attemptId}

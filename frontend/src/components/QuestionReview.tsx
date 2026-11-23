@@ -8,7 +8,15 @@ import type { Answer, Question } from '../api/schemas'
 import { formatPoints, questionTypeLabel } from '../lib/format'
 
 /** Shows a question with its correct answer(s) and, optionally, the user's answer. */
-export function QuestionReview({ index, question, answer }: { index: number; question: Question; answer?: Answer | undefined }) {
+export function QuestionReview({
+  index,
+  question,
+  answer,
+}: {
+  index: number
+  question: Question
+  answer?: Answer | undefined
+}) {
   const correct = new Set(question.correct ?? [])
   const selected = new Set(answer?.selected ?? [])
   return (
@@ -19,7 +27,9 @@ export function QuestionReview({ index, question, answer }: { index: number; que
             Question {index + 1} · {questionTypeLabel[question.type]}
           </span>
           {answer !== undefined && (
-            <Badge variant={answer.correct ? 'success' : answer.points > 0 ? 'warning' : 'destructive'}>
+            <Badge
+              variant={answer.correct ? 'success' : answer.points > 0 ? 'warning' : 'destructive'}
+            >
               {formatPoints(answer.points)} / 1 point
             </Badge>
           )}
@@ -34,11 +44,21 @@ export function QuestionReview({ index, question, answer }: { index: number; que
                 key={opt}
                 className={cn(
                   'flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm',
-                  isCorrect ? 'border-green-200 bg-green-50' : isSelected ? 'border-red-200 bg-red-50' : 'border-border',
+                  isCorrect
+                    ? 'border-green-200 bg-green-50'
+                    : isSelected
+                      ? 'border-red-200 bg-red-50'
+                      : 'border-border',
                 )}
               >
                 <span className="flex items-center gap-2">
-                  {isCorrect ? <CheckIcon className="size-4 text-green-600" aria-hidden /> : isSelected ? <XIcon className="size-4 text-destructive" aria-hidden /> : <span className="size-4" />}
+                  {isCorrect ? (
+                    <CheckIcon className="size-4 text-green-600" aria-hidden />
+                  ) : isSelected ? (
+                    <XIcon className="size-4 text-destructive" aria-hidden />
+                  ) : (
+                    <span className="size-4" />
+                  )}
                   {opt}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -49,8 +69,12 @@ export function QuestionReview({ index, question, answer }: { index: number; que
             )
           })}
         </ul>
-        {question.explanation !== undefined && <p className="text-sm text-muted-foreground">{question.explanation}</p>}
-        {question.sourceHint !== undefined && question.sourceHint !== '' && <p className="text-xs text-muted-foreground/80">Source: {question.sourceHint}</p>}
+        {question.explanation !== undefined && (
+          <p className="text-sm text-muted-foreground">{question.explanation}</p>
+        )}
+        {question.sourceHint !== undefined && question.sourceHint !== '' && (
+          <p className="text-xs text-muted-foreground/80">Source: {question.sourceHint}</p>
+        )}
       </CardContent>
     </Card>
   )

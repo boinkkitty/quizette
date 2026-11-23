@@ -36,7 +36,8 @@ const navItems: readonly NavItem[] = [
   { to: '/history', label: 'History', icon: HistoryIcon },
 ]
 
-const linkBase = 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors'
+const linkBase =
+  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors'
 
 /** Signed-in navigation: brand on top, page links, then the user and Sign out at the bottom. */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -45,7 +46,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate()
   return (
     <div className="flex h-full flex-col gap-6 p-4">
-      <Link to="/" onClick={onNavigate} className="flex items-center gap-2 px-3 pt-2 text-lg font-semibold tracking-tight text-primary">
+      <Link
+        to="/"
+        onClick={onNavigate}
+        className="flex items-center gap-2 px-3 pt-2 text-lg font-semibold tracking-tight text-primary"
+      >
         <BookOpenCheckIcon className="size-5" aria-hidden />
         Quizette
       </Link>
@@ -64,7 +69,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
             )}
             activeProps={{
-              className: primary === true ? 'ring-3 ring-primary/30' : 'bg-secondary text-primary hover:text-primary',
+              className:
+                primary === true
+                  ? 'ring-3 ring-primary/30'
+                  : 'bg-secondary text-primary hover:text-primary',
               'aria-current': 'page',
             }}
           >
@@ -120,7 +128,10 @@ export function AppSidebar() {
           hidden from assistive technology. */}
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:hidden">
-          <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight text-primary">
+          <Link
+            to="/"
+            className="flex items-center gap-2 font-semibold tracking-tight text-primary"
+          >
             <BookOpenCheckIcon className="size-5" aria-hidden />
             Quizette
           </Link>
@@ -133,10 +144,18 @@ export function AppSidebar() {
 
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-30 bg-black/30 md:hidden" />
-          <Dialog.Content aria-describedby={undefined} className="fixed inset-y-0 left-0 z-30 w-64 bg-background shadow-lg outline-none md:hidden">
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed inset-y-0 left-0 z-30 w-64 bg-background shadow-lg outline-none md:hidden"
+          >
             <Dialog.Title className="sr-only">Menu</Dialog.Title>
             <Dialog.Close asChild>
-              <Button variant="ghost" size="icon" aria-label="Close menu" className="absolute top-3 right-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Close menu"
+                className="absolute top-3 right-3"
+              >
                 <XIcon aria-hidden />
               </Button>
             </Dialog.Close>

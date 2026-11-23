@@ -29,7 +29,10 @@ interface RequestOptions {
 /** Header the API requires on every state-changing request (CSRF guard). */
 export const csrfHeader = { 'X-Requested-With': 'quizette' } as const
 
-async function send(path: string, { method = 'GET', json, form, signal }: RequestOptions): Promise<Response> {
+async function send(
+  path: string,
+  { method = 'GET', json, form, signal }: RequestOptions,
+): Promise<Response> {
   const headers = new Headers({ Accept: 'application/json' })
   // The session cookie rides on every request, so every mutation carries the CSRF header.
   if (method !== 'GET') headers.set('X-Requested-With', csrfHeader['X-Requested-With'])
@@ -42,15 +45,30 @@ async function send(path: string, { method = 'GET', json, form, signal }: Reques
   }
   let res: Response
   try {
-    res = await fetch(`/api${path}`, { method, headers, body, credentials: 'same-origin', signal: signal ?? null })
+    res = await fetch(`/api${path}`, {
+      method,
+      headers,
+      body,
+      credentials: 'same-origin',
+      signal: signal ?? null,
+    })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err
-    throw new ApiError(0, 'network', 'Could not reach the server. Check your connection and try again.')
+    throw new ApiError(
+      0,
+      'network',
+      'Could not reach the server. Check your connection and try again.',
+    )
   }
   if (!res.ok) {
     const parsed = errorBodySchema.safeParse(await res.json().catch(() => null))
     if (parsed.success) {
-      throw new ApiError(res.status, parsed.data.error, parsed.data.message, parsed.data.problems ?? [])
+      throw new ApiError(
+        res.status,
+        parsed.data.error,
+        parsed.data.message,
+        parsed.data.problems ?? [],
+      )
     }
     throw new ApiError(res.status, 'http', `Request failed (${String(res.status)})`)
   }
@@ -58,7 +76,11 @@ async function send(path: string, { method = 'GET', json, form, signal }: Reques
 }
 
 /** Performs a request and validates the JSON response against schema. */
-export async function request<S extends z.ZodType>(schema: S, path: string, opts: RequestOptions = {}): Promise<z.infer<S>> {
+export async function request<S extends z.ZodType>(
+  schema: S,
+  path: string,
+  opts: RequestOptions = {},
+): Promise<z.infer<S>> {
   const res = await send(path, opts)
   const parsed = schema.safeParse(await res.json())
   if (!parsed.success) {
