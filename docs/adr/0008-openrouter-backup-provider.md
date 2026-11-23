@@ -20,6 +20,14 @@ On 2026-11-23 Gemini's free tier was overloaded for hours. 14 of 16 benchmark ca
 ## Consequences
 - Free OpenRouter models are capped at 50 requests a day (1,000 after buying 10 credits), so OpenRouter is the backup, not the primary.
 - **Only `:free` models should be listed.** OpenRouter bills a fallback to a paid model at the paid price.
-- Free models differ in quality and change often. `OPENROUTER_MODELS` makes them configurable. The defaults were the largest free models with structured-output support on 2026-11-23, and haven't been live-tested yet.
+- Free models differ in quality and change often. `OPENROUTER_MODELS` makes them configurable. The default is `nvidia/nemotron-3.5-super-vl:free` alone, from a live test on 2026-11-23 (2-page sample PDF, 5 questions):
+
+  | Model | pdf-native | text-extract | Kept? |
+  |---|---|---|---|
+  | `nvidia/nemotron-3.5-super-vl:free` | ✅ valid, 38 s, 4,748 tokens | ✅ valid, 44 s, 4,357 tokens | Yes |
+  | `baidu/ernie-5.5-flash-preview:free` | ⚠️ 1 of 5 questions valid (5-option MCQs, wrong True/False options) | ❌ 429 | No |
+  | `inclusionai/ling-3.2-flash:free` | ❌ 429 | ❌ 429 | No (untested) |
+
+  Nemotron spends most of its tokens thinking (3.3–3.6k of ~4.5k), so expect it to be slow on full lectures.
 - OpenRouter's `cloudflare-ai` parser converts the PDF to text, so scanned PDFs still need Gemini.
 - With the defaults (90 s per attempt, 3 min per job), Gemini gets 90 s and OpenRouter gets the remaining ~90 s. Large lectures took 53–57 s on Gemini; raise `JOB_TIMEOUT` if successful calls start timing out.

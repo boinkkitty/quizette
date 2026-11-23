@@ -110,9 +110,10 @@ func Load(getenv func(string) string) (Config, error) {
 	// Both defaults passed the pipeline test in docs/research/llm-models.md.
 	// "none" turns fallback off.
 	c.GeminiFallbackModels = list(str("GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-3.1-flash-lite"))
-	// Free models that supported structured outputs on 2026-11-23. OpenRouter's
-	// free catalogue changes often; check https://openrouter.ai/models?q=free.
-	c.OpenRouterModels = list(str("OPENROUTER_MODELS", "nvidia/nemotron-3.5-super-vl:free,baidu/ernie-5.5-flash-preview:free,inclusionai/ling-3.2-flash:free"))
+	// The only free model that passed TestLiveOpenRouter on 2026-11-23 (see
+	// docs/adr/0008). OpenRouter's free catalogue changes often; check
+	// https://openrouter.ai/models?q=free before adding more.
+	c.OpenRouterModels = list(str("OPENROUTER_MODELS", "nvidia/nemotron-3.5-super-vl:free"))
 	if v := getenv("GEMINI_THINKING_BUDGET"); v != "" {
 		n := int32(num("GEMINI_THINKING_BUDGET", 0)) //nolint:gosec // small config value
 		c.GeminiThinkingBudget = &n

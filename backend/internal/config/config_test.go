@@ -32,7 +32,7 @@ func TestLoad(t *testing.T) {
 		}
 	}
 
-	if c.LLMAttemptTimeout.String() != "1m30s" || c.OpenRouterPDFEngine != "cloudflare-ai" || len(c.OpenRouterModels) == 0 || c.OpenRouterAPIKey != "" {
+	if c.LLMAttemptTimeout.String() != "1m30s" || c.OpenRouterPDFEngine != "cloudflare-ai" || !slices.Equal(c.OpenRouterModels, []string{"nvidia/nemotron-3.5-super-vl:free"}) || c.OpenRouterAPIKey != "" {
 		t.Errorf("openrouter defaults: %+v", c)
 	}
 	if _, err := config.Load(env(map[string]string{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "k"})); err != nil {
