@@ -11,7 +11,8 @@ import {
   UploadIcon,
   XIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Dialog } from 'radix-ui'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -108,44 +109,41 @@ export function AppSidebar() {
     setOpenedOn(next ? pathname : null)
   }
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpenedOn(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 border-r bg-background md:block">
         <SidebarContent />
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:hidden">
-        <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight text-primary">
-          <BookOpenCheckIcon className="size-5" aria-hidden />
-          Quizette
-        </Link>
-        <Button variant="ghost" size="icon" aria-label="Open menu" aria-expanded={open} onClick={() => setOpen(true)}>
-          <MenuIcon aria-hidden />
-        </Button>
-      </header>
-
-      {open && (
-        <div className="fixed inset-0 z-30 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
-          <button type="button" aria-label="Close menu" className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
-          <aside className="relative h-full w-64 bg-background shadow-lg">
-            <Button variant="ghost" size="icon" aria-label="Close menu" className="absolute top-3 right-3" onClick={() => setOpen(false)}>
-              <XIcon aria-hidden />
+      {/* Radix Dialog makes the drawer a real modal: focus moves in, Tab stays inside,
+          Escape closes it, focus returns to the menu button, and the page behind is
+          hidden from assistive technology. */}
+      <Dialog.Root open={open} onOpenChange={setOpen}>
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:hidden">
+          <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight text-primary">
+            <BookOpenCheckIcon className="size-5" aria-hidden />
+            Quizette
+          </Link>
+          <Dialog.Trigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Open menu">
+              <MenuIcon aria-hidden />
             </Button>
+          </Dialog.Trigger>
+        </header>
+
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-black/30 md:hidden" />
+          <Dialog.Content aria-describedby={undefined} className="fixed inset-y-0 left-0 z-30 w-64 bg-background shadow-lg outline-none md:hidden">
+            <Dialog.Title className="sr-only">Menu</Dialog.Title>
+            <Dialog.Close asChild>
+              <Button variant="ghost" size="icon" aria-label="Close menu" className="absolute top-3 right-3">
+                <XIcon aria-hidden />
+              </Button>
+            </Dialog.Close>
             <SidebarContent onNavigate={() => setOpen(false)} />
-          </aside>
-        </div>
-      )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   )
 }

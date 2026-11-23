@@ -135,12 +135,17 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			return
 		}
 		u, err := s.cfg.Identity.Authenticate(r.Context(), c.Value)
-		if err != nil {
-			if !errors.Is(err, domain.ErrUnauthorized) {
-				logctx.From(r.Context(), s.log).WarnContext(r.Context(), "auth.session_lookup_failed", slog.Any("error", err))
-			}
+		switch {
+		case errors.Is(err, domain.ErrUnauthorized):
+			// Unknown or expired session: forget it and continue as a guest.
 			s.clearSessionCookie(w)
 			next.ServeHTTP(w, r)
+			return
+		case err != nil:
+			// The session couldn't be checked (e.g. the database is unreachable). Keep the
+			// cookie, which may well be valid, and ask the client to retry later.
+			logctx.From(r.Context(), s.log).ErrorContext(r.Context(), "auth.session_lookup_failed", slog.Any("error", err))
+			writeJSON(w, http.StatusServiceUnavailable, errorBody{Error: "unavailable", Message: "the service is temporarily unavailable; please try again"})
 			return
 		}
 		ctx := context.WithValue(r.Context(), userKey, u)

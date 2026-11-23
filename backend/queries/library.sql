@@ -58,8 +58,13 @@ WHERE c.owner_id = sqlc.arg('owner_id')
     AND (sqlc.narg('status')::text IS NULL OR c.status = sqlc.narg('status')::text)
 ORDER BY t.name, c.created_at;
 
--- name: UpdateChapter :execrows
-UPDATE chapters SET title = $3, status = $4, topic_id = $5 WHERE owner_id = $1 AND id = $2;
+-- Title and status are saved separately, each touching only its own column, so a rename
+-- during generation can't overwrite the job's status change (or the other way round).
+-- name: UpdateChapterTitle :execrows
+UPDATE chapters SET title = $3 WHERE owner_id = $1 AND id = $2;
+
+-- name: UpdateChapterStatus :execrows
+UPDATE chapters SET status = $2 WHERE id = $1;
 
 -- name: DeleteChapter :execrows
 DELETE FROM chapters WHERE owner_id = $1 AND id = $2;

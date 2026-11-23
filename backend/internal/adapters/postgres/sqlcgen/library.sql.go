@@ -345,26 +345,37 @@ func (q *Queries) ListTopics(ctx context.Context, ownerID string) ([]ListTopicsR
 	return items, nil
 }
 
-const updateChapter = `-- name: UpdateChapter :execrows
-UPDATE chapters SET title = $3, status = $4, topic_id = $5 WHERE owner_id = $1 AND id = $2
+const updateChapterStatus = `-- name: UpdateChapterStatus :execrows
+UPDATE chapters SET status = $2 WHERE id = $1
 `
 
-type UpdateChapterParams struct {
+type UpdateChapterStatusParams struct {
+	ID     string
+	Status string
+}
+
+func (q *Queries) UpdateChapterStatus(ctx context.Context, arg UpdateChapterStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateChapterStatus, arg.ID, arg.Status)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateChapterTitle = `-- name: UpdateChapterTitle :execrows
+UPDATE chapters SET title = $3 WHERE owner_id = $1 AND id = $2
+`
+
+type UpdateChapterTitleParams struct {
 	OwnerID string
 	ID      string
 	Title   string
-	Status  string
-	TopicID string
 }
 
-func (q *Queries) UpdateChapter(ctx context.Context, arg UpdateChapterParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateChapter,
-		arg.OwnerID,
-		arg.ID,
-		arg.Title,
-		arg.Status,
-		arg.TopicID,
-	)
+// Title and status are saved separately, each touching only its own column, so a rename
+// during generation can't overwrite the job's status change (or the other way round).
+func (q *Queries) UpdateChapterTitle(ctx context.Context, arg UpdateChapterTitleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateChapterTitle, arg.OwnerID, arg.ID, arg.Title)
 	if err != nil {
 		return 0, err
 	}

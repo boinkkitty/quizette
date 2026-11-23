@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -356,4 +358,51 @@ func TestOAuth(t *testing.T) {
 			t.Fatalf("start: %+v %v", start, err)
 		}
 	})
+}
+
+// blockingGenerator never answers: it waits until the job's deadline passes, like a
+// hung LLM call.
+type blockingGenerator struct{}
+
+func (blockingGenerator) Generate(ctx context.Context, _ app.GenerateInput) (app.GenerationResult, error) {
+	<-ctx.Done()
+	return app.GenerationResult{}, fmt.Errorf("generate: %w", ctx.Err())
+}
+
+// Regression: a job that hit JobTimeout stayed "running" (and its chapter "pending")
+// forever, because the failure was saved with the already-expired job context.
+func TestProcessJobTimeoutMarksJobFailed(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.genS.Generator = blockingGenerator{}
+	e.genS.Config.JobTimeout = 20 * time.Millisecond
+	res := e.upload(t, "u1", 5)
+
+	job := e.store.Job(res.JobID)
+	if job.Status != domain.JobFailed || !strings.Contains(job.Error, "timed out") {
+		t.Fatalf("job = %s %q, want failed with a timeout reason", job.Status, job.Error)
+	}
+	if ch := e.store.Chapter(res.ChapterID); ch.Status != domain.ChapterFailed {
+		t.Fatalf("chapter = %s, want failed", ch.Status)
+	}
+}
+
+// Regression: when the generator itself reported malformed output (a validation error,
+// e.g. JSON that doesn't match the schema), the job failed at once instead of retrying
+// with that feedback.
+func TestProcessJobRetriesMalformedGeneratorOutput(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t,
+		apptest.Fails(domain.Invalid("response was not valid JSON matching the schema")),
+		apptest.Returns(apptest.ValidDrafts(5)),
+	)
+	res := e.upload(t, "u1", 5)
+
+	job := e.store.Job(res.JobID)
+	if job.Status != domain.JobSucceeded || job.Metrics.ValidationRetries != 1 {
+		t.Fatalf("job = %s retries=%d, want succeeded after 1 retry", job.Status, job.Metrics.ValidationRetries)
+	}
+	if len(e.gen.Calls) != 2 || !slices.ContainsFunc(e.gen.Calls[1].Feedback, func(f string) bool { return strings.Contains(f, "not valid JSON") }) {
+		t.Fatalf("retry feedback = %v, want the malformed-output problem", e.gen.Calls)
+	}
 }

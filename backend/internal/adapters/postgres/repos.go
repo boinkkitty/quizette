@@ -128,8 +128,13 @@ func toChapterSummary(row sqlcgen.ListChaptersByTopicRow) app.ChapterSummary {
 	return cs
 }
 
-func (r chapterRepo) Update(ctx context.Context, c domain.Chapter) error {
-	n, err := r.q.UpdateChapter(ctx, sqlcgen.UpdateChapterParams{OwnerID: string(c.OwnerID), ID: string(c.ID), Title: c.Title, Status: string(c.Status), TopicID: string(c.TopicID)})
+func (r chapterRepo) UpdateTitle(ctx context.Context, c domain.Chapter) error {
+	n, err := r.q.UpdateChapterTitle(ctx, sqlcgen.UpdateChapterTitleParams{OwnerID: string(c.OwnerID), ID: string(c.ID), Title: c.Title})
+	return mustAffect("chapter", n, err)
+}
+
+func (r chapterRepo) UpdateStatus(ctx context.Context, c domain.Chapter) error {
+	n, err := r.q.UpdateChapterStatus(ctx, sqlcgen.UpdateChapterStatusParams{ID: string(c.ID), Status: string(c.Status)})
 	return mustAffect("chapter", n, err)
 }
 
@@ -312,11 +317,15 @@ func (r attemptRepo) Get(ctx context.Context, owner, id domain.ID) (domain.Chapt
 	return a, nil
 }
 
-func (r attemptRepo) Update(ctx context.Context, a domain.ChapterAttempt) error {
+func (r attemptRepo) SaveSubmission(ctx context.Context, a domain.ChapterAttempt) error {
 	return inTx(ctx, r.db, func(q *sqlcgen.Queries) error {
-		n, err := q.UpdateAttempt(ctx, sqlcgen.UpdateAttemptParams{ID: string(a.ID), Status: string(a.Status), TotalScore: a.TotalScore, SubmittedAt: a.SubmittedAt})
-		if err := mustAffect("attempt", n, err); err != nil {
-			return err
+		n, err := q.SubmitAttempt(ctx, sqlcgen.SubmitAttemptParams{ID: string(a.ID), TotalScore: a.TotalScore, SubmittedAt: a.SubmittedAt})
+		if err != nil {
+			return mapErr("attempt", err)
+		}
+		if n == 0 {
+			// Already submitted (another request got there first) or deleted meanwhile.
+			return fmt.Errorf("attempt already submitted: %w", domain.ErrConflict)
 		}
 		if err := q.DeleteAnswers(ctx, string(a.ID)); err != nil {
 			return mapErr("answers", err)

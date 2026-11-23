@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -12,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,13 +31,19 @@ type harness struct {
 	clock *apptest.Clock
 }
 
-func newHarness(t *testing.T) *harness {
+// newHarness serves the real router over the in-memory store. Each wrap can replace
+// repositories, e.g. to inject failures.
+func newHarness(t *testing.T, wrap ...func(*app.Repos)) *harness {
 	t.Helper()
 	store := apptest.NewStore()
 	logs := &bytes.Buffer{}
 	logger := slog.New(slog.NewJSONHandler(logs, nil))
 	clock := apptest.NewClock(time.Now())
-	deps := app.Deps{Repos: store.Repos(), UoW: store, Clock: clock, IDs: &apptest.IDs{}, Logger: logger}
+	repos := store.Repos()
+	for _, w := range wrap {
+		w(&repos)
+	}
+	deps := app.Deps{Repos: repos, UoW: store, Clock: clock, IDs: &apptest.IDs{}, Logger: logger}
 	queue := &apptest.SyncQueue{}
 	gen := &app.GenerationService{Deps: deps, Generator: stub.Generator{}, Queue: queue, Config: app.GenerationConfig{}}
 	queue.Handler = gen.ProcessJob
@@ -422,5 +430,51 @@ func TestUploadTooLarge(t *testing.T) {
 	var e map[string]any
 	if code := c.upload(map[string]string{"newTopicName": "T", "count": "5"}, "big.pdf", big, &e); code != http.StatusBadRequest {
 		t.Fatalf("too large: %d %v", code, e)
+	}
+}
+
+// flakySessions fails session lookups while down is set, like a database outage.
+type flakySessions struct {
+	app.SessionRepository
+	down *atomic.Bool
+}
+
+func (f flakySessions) Get(ctx context.Context, tokenHash string) (app.Session, error) {
+	if f.down.Load() {
+		return app.Session{}, errors.New("connection refused")
+	}
+	return f.SessionRepository.Get(ctx, tokenHash)
+}
+
+// Regression: a temporary session-lookup failure cleared the session cookie, logging the
+// user out for good. It must answer 503 and keep the cookie, so the session works again
+// once the database is back.
+func TestSessionLookupOutageKeepsCookie(t *testing.T) {
+	t.Parallel()
+	var down atomic.Bool
+	h := newHarness(t, func(r *app.Repos) { r.Sessions = flakySessions{SessionRepository: r.Sessions, down: &down} })
+	c := h.client(t)
+	if code := c.do("POST", "/api/auth/signup", map[string]string{"email": "ada@example.com", "password": "correct horse"}, nil); code != http.StatusCreated {
+		t.Fatalf("signup: %d", code)
+	}
+
+	down.Store(true)
+	resp, err := c.http.Get(c.base + "/api/auth/me")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("me during outage: %d, want 503", resp.StatusCode)
+	}
+	for _, ck := range resp.Cookies() {
+		if ck.Name == "qz_session" {
+			t.Errorf("session cookie was changed during the outage: %+v", ck)
+		}
+	}
+
+	down.Store(false)
+	if code := c.do("GET", "/api/auth/me", nil, nil); code != http.StatusOK {
+		t.Fatalf("me after outage: %d, want 200 (still logged in)", code)
 	}
 }

@@ -48,7 +48,14 @@ func (s *Store) Repos() app.Repos {
 }
 
 // Do implements app.UnitOfWork (no rollback; adequate for tests).
-func (s *Store) Do(_ context.Context, fn func(app.Repos) error) error { return fn(s.Repos()) }
+// Do runs fn with the store's repositories. Like a real database transaction, it refuses
+// to start once ctx is done.
+func (s *Store) Do(ctx context.Context, fn func(app.Repos) error) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	return fn(s.Repos())
+}
 
 // Job returns a job by ID (test helper).
 func (s *Store) Job(id domain.ID) domain.ProcessingJob {
@@ -223,13 +230,27 @@ func (s *Store) chapterSummaries(keep func(domain.Chapter) bool) []app.ChapterSu
 	return out
 }
 
-func (r chapterRepo) Update(_ context.Context, c domain.Chapter) error {
+func (r chapterRepo) UpdateTitle(_ context.Context, c domain.Chapter) error {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
-	if _, ok := r.s.chapters[c.ID]; !ok {
+	stored, ok := r.s.chapters[c.ID]
+	if !ok || stored.OwnerID != c.OwnerID {
 		return notFound("chapter")
 	}
-	r.s.chapters[c.ID] = c
+	stored.Title = c.Title
+	r.s.chapters[c.ID] = stored
+	return nil
+}
+
+func (r chapterRepo) UpdateStatus(_ context.Context, c domain.Chapter) error {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	stored, ok := r.s.chapters[c.ID]
+	if !ok {
+		return notFound("chapter")
+	}
+	stored.Status = c.Status
+	r.s.chapters[c.ID] = stored
 	return nil
 }
 
@@ -346,9 +367,13 @@ func (r attemptRepo) Get(_ context.Context, owner, id domain.ID) (domain.Chapter
 	return a, nil
 }
 
-func (r attemptRepo) Update(_ context.Context, a domain.ChapterAttempt) error {
+func (r attemptRepo) SaveSubmission(_ context.Context, a domain.ChapterAttempt) error {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
+	stored, ok := r.s.attempts[a.ID]
+	if !ok || stored.Status != domain.AttemptInProgress {
+		return fmt.Errorf("attempt already submitted: %w", domain.ErrConflict)
+	}
 	r.s.attempts[a.ID] = a
 	return nil
 }

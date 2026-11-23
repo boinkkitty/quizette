@@ -91,6 +91,7 @@ describe('routing', () => {
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
 
     expect(await screen.findByTestId('score')).toHaveTextContent('2.5 / 5')
+    expect(window.localStorage.getItem('quizette:quiz-progress:a1')).toBeNull() // saved progress cleared once submitted
     expect(router.state.location.pathname).toBe('/attempts/a1/results')
     expect(screen.getByText('0.5 / 1 point')).toBeInTheDocument()
     expect(body).toEqual({ answers: [{ questionId: 'q1', selected: [1] }, { questionId: 'q2', selected: [1] }, { questionId: 'q3', selected: [0] }] })
@@ -291,5 +292,27 @@ describe('history page', () => {
     expect(within(done).getByText('Biology')).toBeInTheDocument()
     expect(done).toHaveTextContent('2.5 / 5 (50%)')
     expect(within(done).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/attempts/a1/results')
+  })
+})
+
+// Regression: opening the mobile menu left keyboard focus on the page behind its
+// overlay, so Tab moved through links the user couldn't see.
+describe('mobile menu', () => {
+  it('moves focus into the menu, keeps Tab inside it, and returns focus on Escape', async () => {
+    const u = userEvent.setup()
+    renderApp('/')
+    const openButton = await screen.findByRole('button', { name: 'Open menu' })
+    await u.click(openButton)
+
+    const menu = await screen.findByRole('dialog', { name: 'Menu' })
+    expect(menu).toContainElement(document.activeElement as HTMLElement)
+    for (let i = 0; i < 12; i++) {
+      await u.tab()
+      expect(menu).toContainElement(document.activeElement as HTMLElement)
+    }
+
+    await u.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument())
+    expect(openButton).toHaveFocus()
   })
 })

@@ -9,5 +9,6 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   cleanup()
+  window.localStorage.clear() // saved quiz progress must not leak between tests
 })
 afterAll(() => server.close())

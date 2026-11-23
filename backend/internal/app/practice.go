@@ -67,7 +67,7 @@ func (s *PracticeService) SubmitChapterAttempt(ctx context.Context, ownerID, att
 	if err := a.Submit(set, responses, s.Clock.Now()); err != nil {
 		return AttemptView{}, err
 	}
-	if err := s.Repos.Attempts.Update(ctx, a); err != nil {
+	if err := s.Repos.Attempts.SaveSubmission(ctx, a); err != nil {
 		return AttemptView{}, err
 	}
 	logctx.From(ctx, s.Logger).InfoContext(ctx, "attempt.submitted", slog.String("attempt_id", a.ID.String()), slog.Float64("score", a.TotalScore), slog.Int("max_score", a.MaxScore))

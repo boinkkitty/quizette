@@ -114,7 +114,7 @@ func (s *LibraryService) RenameChapter(ctx context.Context, ownerID, id domain.I
 	if err := c.Rename(title); err != nil {
 		return domain.Chapter{}, err
 	}
-	return c, s.Repos.Chapters.Update(ctx, c)
+	return c, s.Repos.Chapters.UpdateTitle(ctx, c)
 }
 
 // DeleteChapter deletes a chapter with its set, jobs and attempts.

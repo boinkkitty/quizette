@@ -89,7 +89,11 @@ type ChapterRepository interface {
 	// ListByOwner lists the user's chapters matching filter, ordered by topic name then
 	// creation time.
 	ListByOwner(ctx context.Context, ownerID domain.ID, filter ChapterFilter) ([]ChapterSummary, error)
-	Update(ctx context.Context, c domain.Chapter) error
+	// UpdateTitle saves c.Title only, and UpdateStatus saves c.Status only. Keeping them
+	// apart means a rename and a generation job finishing at the same time can't
+	// overwrite each other's change with a stale copy.
+	UpdateTitle(ctx context.Context, c domain.Chapter) error
+	UpdateStatus(ctx context.Context, c domain.Chapter) error
 	Delete(ctx context.Context, ownerID, id domain.ID) error
 }
 
@@ -122,8 +126,10 @@ type AttemptSummary struct {
 type ChapterAttemptRepository interface {
 	Create(ctx context.Context, a domain.ChapterAttempt) error
 	Get(ctx context.Context, ownerID, id domain.ID) (domain.ChapterAttempt, error)
-	// Update saves status, score and answers.
-	Update(ctx context.Context, a domain.ChapterAttempt) error
+	// SaveSubmission saves a submitted attempt's score and answers. It returns
+	// domain.ErrConflict if the attempt is no longer in progress, so of two concurrent
+	// submissions only the first is kept.
+	SaveSubmission(ctx context.Context, a domain.ChapterAttempt) error
 	ListByChapter(ctx context.Context, ownerID, chapterID domain.ID) ([]domain.ChapterAttempt, error)
 	// ListByOwner returns at most limit of the user's attempts across all chapters, newest first.
 	ListByOwner(ctx context.Context, ownerID domain.ID, limit int) ([]AttemptSummary, error)

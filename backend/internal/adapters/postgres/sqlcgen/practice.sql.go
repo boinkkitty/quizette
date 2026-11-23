@@ -287,24 +287,21 @@ func (q *Queries) QuestionStats(ctx context.Context, arg QuestionStatsParams) ([
 	return items, nil
 }
 
-const updateAttempt = `-- name: UpdateAttempt :execrows
-UPDATE chapter_attempts SET status = $2, total_score = $3, submitted_at = $4 WHERE id = $1
+const submitAttempt = `-- name: SubmitAttempt :execrows
+UPDATE chapter_attempts SET status = 'submitted', total_score = $2, submitted_at = $3
+WHERE id = $1 AND status = 'in_progress'
 `
 
-type UpdateAttemptParams struct {
+type SubmitAttemptParams struct {
 	ID          string
-	Status      string
 	TotalScore  float64
 	SubmittedAt *time.Time
 }
 
-func (q *Queries) UpdateAttempt(ctx context.Context, arg UpdateAttemptParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateAttempt,
-		arg.ID,
-		arg.Status,
-		arg.TotalScore,
-		arg.SubmittedAt,
-	)
+// Only an in-progress attempt can be submitted: the status condition makes concurrent
+// submissions safe, because the second one updates no row.
+func (q *Queries) SubmitAttempt(ctx context.Context, arg SubmitAttemptParams) (int64, error) {
+	result, err := q.db.Exec(ctx, submitAttempt, arg.ID, arg.TotalScore, arg.SubmittedAt)
 	if err != nil {
 		return 0, err
 	}

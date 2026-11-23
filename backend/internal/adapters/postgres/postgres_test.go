@@ -205,3 +205,125 @@ func TestNoDocumentBytesColumn(t *testing.T) {
 type testWriter struct{ t *testing.T }
 
 func (w testWriter) Write(p []byte) (int, error) { w.t.Log(string(p)); return len(p), nil }
+
+// newServices wires the app services to a real database for the race tests below.
+// With a nil queue handler, uploads stay pending until the test finishes them.
+func newServices(t *testing.T, pool *pgxpool.Pool, process bool) (*postgres.Store, *app.GenerationService, *app.LibraryService, *app.PracticeService, domain.User) {
+	t.Helper()
+	store := postgres.NewStore(pool)
+	deps := app.Deps{Repos: store.Repos(), UoW: store, Clock: system.Clock{}, IDs: system.UUIDv7{}, Logger: slog.New(slog.DiscardHandler)}
+	queue := &apptest.SyncQueue{}
+	gen := &app.GenerationService{Deps: deps, Generator: stub.Generator{}, Queue: queue}
+	if process {
+		queue.Handler = gen.ProcessJob
+	}
+	ids := &app.IdentityService{Deps: deps, Hasher: system.Bcrypt{Cost: 4}}
+	// Unique per run: CI shares one database between tests.
+	u, _, err := ids.SignUp(context.Background(), string(system.UUIDv7{}.NewID())+"@example.com", "correct horse", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, gen, &app.LibraryService{Deps: deps}, &app.PracticeService{Deps: deps}, u
+}
+
+// Regression: renaming a chapter while its questions were being generated saved the
+// whole row from a stale copy, so one change overwrote the other. Either a ready
+// chapter went back to pending (questions unreachable) or the new title was lost.
+func TestChapterRenameDuringGeneration(t *testing.T) {
+	pool := openDB(t)
+	ctx := context.Background()
+	store, gen, lib, _, u := newServices(t, pool, false)
+	chapters := store.Repos().Chapters
+	upload := func(name string) app.UploadResult {
+		res, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, NewTopicName: name, Count: 5, Filename: "a.pdf", Data: []byte("%PDF-1.4 a")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = lib.DeleteTopic(ctx, u.ID, res.TopicID) })
+		return res
+	}
+
+	// The rename reads the chapter while it's pending; the job marks it ready before
+	// the rename saves.
+	a := upload("Rename saves last")
+	staleForRename, _ := chapters.Get(ctx, u.ID, a.ChapterID)
+	ready, _ := chapters.GetByID(ctx, a.ChapterID)
+	if err := ready.MarkReady(); err != nil {
+		t.Fatal(err)
+	}
+	if err := chapters.UpdateStatus(ctx, ready); err != nil {
+		t.Fatal(err)
+	}
+	if err := staleForRename.Rename("Renamed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chapters.UpdateTitle(ctx, staleForRename); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := chapters.GetByID(ctx, a.ChapterID); got.Status != domain.ChapterReady || got.Title != "Renamed" {
+		t.Errorf("rename saved last: got %s %q, want ready %q", got.Status, got.Title, "Renamed")
+	}
+
+	// The job reads the chapter, the user renames it, then the job saves its status.
+	b := upload("Job saves last")
+	staleForJob, _ := chapters.GetByID(ctx, b.ChapterID)
+	if _, err := lib.RenameChapter(ctx, u.ID, b.ChapterID, "Renamed too"); err != nil {
+		t.Fatal(err)
+	}
+	if err := staleForJob.MarkReady(); err != nil {
+		t.Fatal(err)
+	}
+	if err := chapters.UpdateStatus(ctx, staleForJob); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := chapters.GetByID(ctx, b.ChapterID); got.Status != domain.ChapterReady || got.Title != "Renamed too" {
+		t.Errorf("job saved last: got %s %q, want ready %q", got.Status, got.Title, "Renamed too")
+	}
+}
+
+// Regression: two submissions of the same attempt could both pass the "still in
+// progress" check, and the second replaced the first one's answers and score.
+func TestConcurrentSubmissionKeepsFirst(t *testing.T) {
+	pool := openDB(t)
+	ctx := context.Background()
+	store, gen, lib, prac, u := newServices(t, pool, true)
+	res, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, NewTopicName: "Submit race", Count: 5, Filename: "a.pdf", Data: []byte("%PDF-1.4 a")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lib.DeleteTopic(ctx, u.ID, res.TopicID) })
+	v, err := prac.StartChapterAttempt(ctx, u.ID, res.ChapterID, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := lib.GetQuestionSet(ctx, u.ID, res.ChapterID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Both requests load the attempt while it's still in progress.
+	attempts := store.Repos().Attempts
+	first, _ := attempts.Get(ctx, u.ID, v.Attempt.ID)
+	second, _ := attempts.Get(ctx, u.ID, v.Attempt.ID)
+	allRight, allBlank := map[domain.ID][]int{}, map[domain.ID][]int{}
+	for _, q := range v.Questions {
+		allRight[q.ID] = q.Correct
+	}
+	if err := first.Submit(set, allRight, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Submit(set, allBlank, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := attempts.SaveSubmission(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := attempts.SaveSubmission(ctx, second); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("second submission: %v, want ErrConflict", err)
+	}
+	got, err := prac.GetChapterAttempt(ctx, u.ID, v.Attempt.ID)
+	if err != nil || got.Attempt.TotalScore != 5 || len(got.Attempt.Answers) != 5 {
+		t.Fatalf("stored attempt: %v score=%v answers=%d, want the first submission (5/5)", err, got.Attempt.TotalScore, len(got.Attempt.Answers))
+	}
+}

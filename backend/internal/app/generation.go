@@ -117,6 +117,9 @@ func resolveTopic(ctx context.Context, r Repos, ids IDGenerator, cmd UploadComma
 	return t, r.Topics.Create(ctx, t)
 }
 
+// saveTimeout bounds saving a job's outcome once generation has finished or timed out.
+const saveTimeout = 30 * time.Second
+
 // ProcessJob runs generation for a queued job. Called by the JobQueue worker.
 func (s *GenerationService) ProcessJob(ctx context.Context, jobID domain.ID, doc domain.Document) {
 	log := logctx.From(ctx, s.Logger).With(slog.String("job_id", jobID.String()))
@@ -148,6 +151,11 @@ func (s *GenerationService) ProcessJob(ctx context.Context, jobID domain.ID, doc
 
 	set, metrics, err := s.generateSet(ctx, job, doc)
 	metrics.TotalMS = s.Clock.Now().Sub(started).Milliseconds()
+
+	// The outcome must be saved even when generation ran into the job deadline, so it
+	// gets its own deadline instead of the (possibly expired) job context.
+	ctx, cancelSave := context.WithTimeout(context.WithoutCancel(ctx), saveTimeout)
+	defer cancelSave()
 	if err != nil {
 		reason := userFacingReason(err)
 		log.WarnContext(ctx, "job.failed", slog.String("reason", reason), slog.Any("error", err), slog.Int64("total_ms", metrics.TotalMS))
@@ -176,7 +184,7 @@ func (s *GenerationService) ProcessJob(ctx context.Context, jobID domain.ID, doc
 		if err := ch.MarkReady(); err != nil {
 			return err
 		}
-		return r.Chapters.Update(ctx, ch)
+		return r.Chapters.UpdateStatus(ctx, ch)
 	})
 	if err != nil {
 		log.ErrorContext(ctx, "job.save_failed", slog.Any("error", err))
@@ -207,6 +215,14 @@ func (s *GenerationService) generateSet(ctx context.Context, job domain.Processi
 		}
 		res, err := s.Generator.Generate(ctx, GenerateInput{Document: doc, Spec: job.Spec, Feedback: feedback})
 		metrics = metrics.Add(res.Metrics)
+		var ve *domain.ValidationError
+		if errors.As(err, &ve) {
+			// The model answered, but not in a usable shape (e.g. JSON that doesn't match
+			// the schema). Retry with the problem as feedback, like invalid drafts below.
+			log.WarnContext(ctx, "job.output_invalid", slog.Any("violations", truncate(ve.Problems, 10)), slog.Int("retry", attempt+1))
+			feedback, lastErr = truncate(ve.Problems, 20), err
+			continue
+		}
 		if err != nil {
 			return domain.QuestionSet{}, metrics, err
 		}
@@ -228,7 +244,6 @@ func (s *GenerationService) generateSet(ctx context.Context, job domain.Processi
 			}
 			return set, metrics, nil
 		}
-		var ve *domain.ValidationError
 		if !errors.As(err, &ve) {
 			return domain.QuestionSet{}, metrics, err
 		}
@@ -267,7 +282,7 @@ func (s *GenerationService) finishFailed(ctx context.Context, jobID domain.ID, r
 		if err := ch.MarkFailed(); err != nil {
 			return err
 		}
-		return r.Chapters.Update(ctx, ch)
+		return r.Chapters.UpdateStatus(ctx, ch)
 	})
 	if err != nil {
 		logctx.From(ctx, s.Logger).ErrorContext(ctx, "job.mark_failed_failed", slog.String("job_id", jobID.String()), slog.Any("error", err))
