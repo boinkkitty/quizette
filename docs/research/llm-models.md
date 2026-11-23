@@ -9,7 +9,7 @@ Quizette sends a lecture PDF (or its extracted text) to an LLM and needs 5–20 
 1. **Use `gemini-3.6-flash`** (the code default). It passed every real test, takes the PDF directly, and is the newest Flash that was reliably available.
 2. **Fallback: `gemini-3.5-flash`.** It also passed every run.
 3. **For speed or quota: `gemini-3.1-flash-lite`.** It was the fastest at about 3.4 s, has no thinking tokens (about 2.1k tokens per call against 3.2k), and its output was valid. Question quality hasn't been compared yet.
-4. **Don't depend on `gemini-3.8-flash` or `gemini-4-hydrogen` yet.** Both were "overloaded" (HTTP 503) most of the time. The app has no retry or fallback, so a 503 fails the upload.
+4. **Don't depend on `gemini-3.8-flash` or `gemini-4-hydrogen` yet.** Both were "overloaded" (HTTP 503) most of the time. On a 408, 429 or 5xx the app now moves on to `GEMINI_FALLBACK_MODELS` (default `gemini-3.5-flash,gemini-3.1-flash-lite`); the upload fails only if every model fails.
 5. **Other providers are a later option, not a replacement.** None gives a permanently free tier with native PDF input and strict JSON schema output together (see below).
 
 ## Gemini: what works
@@ -109,4 +109,5 @@ Sources:
 - Groq's free-plan tab, and whether it needs a card.
 - OpenRouter's current `:free` models that support structured outputs (`supported_parameters=structured_outputs` on the models API).
 - Question quality: compare `gemini-3.6-flash`, `3.5-flash` and `3.1-flash-lite` on the same real lecture PDFs, and run `make bench` for `pdf-native` against `text-extract`.
-- **Resilience:** add retry with backoff on 503/429, and a fallback model, before relying on any free model in production.
+- **OpenRouter backup:** implemented ([ADR 0008](../adr/0008-openrouter-backup-provider.md)). `nvidia/nemotron-3.5-super-vl:free` passed the live test and is the default. Other free models with structured outputs (`particle-ai/particle-1:free`, `dots-studio/dots-3-note-preview:free`) haven't been tried.
+- **Resilience:** fallback models are in place (`GEMINI_FALLBACK_MODELS`). Retrying the same model with backoff isn't; add it if fallbacks also turn out to be overloaded at the same time.

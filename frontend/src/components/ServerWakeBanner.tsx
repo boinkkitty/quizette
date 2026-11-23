@@ -1,12 +1,14 @@
+import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
 import { Spinner } from './Spinner'
 
 /**
  * The API runs on Render's free tier, which sleeps after 15 idle minutes and
- * takes ~30-60s to wake. Ping /healthz on load and explain the delay if slow.
+ * takes ~30-60s to wake. Ping the providers endpoint and recover failed routes.
  */
 export function ServerWakeBanner({ delayMs = 2500 }: { delayMs?: number }) {
+  const router = useRouter()
   const [state, setState] = useState<'checking' | 'slow' | 'awake'>('checking')
 
   useEffect(() => {
@@ -20,6 +22,8 @@ export function ServerWakeBanner({ delayMs = 2500 }: { delayMs?: number }) {
           const res = await fetch('/api/auth/providers', { signal: ctrl.signal })
           if (res.ok) {
             setState('awake')
+            // Route loaders may have exhausted their retries during the cold start.
+            if (i > 0 && !ctrl.signal.aborted) await router.invalidate()
             return
           }
         } catch {
@@ -33,7 +37,7 @@ export function ServerWakeBanner({ delayMs = 2500 }: { delayMs?: number }) {
       ctrl.abort()
       window.clearTimeout(timer)
     }
-  }, [delayMs])
+  }, [delayMs, router])
 
   if (state !== 'slow') return null
   return (

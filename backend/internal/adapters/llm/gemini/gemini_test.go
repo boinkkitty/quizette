@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -162,6 +163,83 @@ func TestInvalidJSONIsValidationError(t *testing.T) {
 	}
 	if res.Metrics.TotalTokens != 2300 {
 		t.Error("metrics should be returned on error")
+	}
+}
+
+// modelServer answers generateContent with the status configured for the
+// requested model (200 by default) and records the models in call order.
+func modelServer(t *testing.T, status map[string]int) (*httptest.Server, func() []string) {
+	t.Helper()
+	var mu sync.Mutex
+	var calls []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, rest, _ := strings.Cut(r.URL.Path, "/models/")
+		model, _, _ := strings.Cut(rest, ":")
+		mu.Lock()
+		calls = append(calls, model)
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		if code, ok := status[model]; ok && code != http.StatusOK {
+			w.WriteHeader(code)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": "failure from " + model}})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"candidates":    []any{map[string]any{"content": map[string]any{"role": "model", "parts": []any{map[string]any{"text": questionsJSON(5)}}}}},
+			"usageMetadata": map[string]any{"promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	return srv, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(calls)
+	}
+}
+
+func TestFallbackModels(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		status    map[string]int
+		wantCalls []string
+		wantModel string
+		wantErr   bool
+	}{
+		{"primary ok", nil, []string{"primary"}, "primary", false},
+		{"overloaded falls back", map[string]int{"primary": 503}, []string{"primary", "backup"}, "backup", false},
+		{"rate limited falls back twice", map[string]int{"primary": 429, "backup": 500}, []string{"primary", "backup", "last"}, "last", false},
+		{"bad request does not fall back", map[string]int{"primary": 400}, []string{"primary"}, "primary", true},
+		{"all fail", map[string]int{"primary": 503, "backup": 503, "last": 429}, []string{"primary", "backup", "last"}, "last", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv, calls := modelServer(t, tt.status)
+			g, err := gemini.New(context.Background(), gemini.Config{
+				APIKey: "k", BaseURL: srv.URL, Model: "primary", FallbackModels: []string{"backup", "", "primary", "last"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := g.Generate(context.Background(), input(t))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got := calls(); !slices.Equal(got, tt.wantCalls) {
+				t.Errorf("calls = %v, want %v", got, tt.wantCalls)
+			}
+			if res.Metrics.Model != tt.wantModel {
+				t.Errorf("metrics model = %q, want %q", res.Metrics.Model, tt.wantModel)
+			}
+			// Only transient failures are marked unavailable, so a provider chain moves on.
+			if wantUnavail := tt.wantErr && tt.status["primary"] != 400; errors.Is(err, app.ErrLLMUnavailable) != wantUnavail {
+				t.Errorf("ErrLLMUnavailable = %v, want %v (err: %v)", !wantUnavail, wantUnavail, err)
+			}
+			if !tt.wantErr && len(res.Drafts) != 5 {
+				t.Errorf("drafts = %d, want 5", len(res.Drafts))
+			}
+		})
 	}
 }
 

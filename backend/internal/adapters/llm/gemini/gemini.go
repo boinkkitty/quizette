@@ -1,6 +1,10 @@
 // Package gemini implements app.QuestionGenerator with Google's Gemini API.
 // It supports two input strategies: sending the PDF bytes natively, or
 // sending text extracted by an app.TextExtractor.
+//
+// When the primary model fails with a transient error (rate limit, overload
+// or server error), the generator retries the same request on each fallback
+// model in order.
 package gemini
 
 import (
@@ -8,7 +12,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,6 +22,7 @@ import (
 
 	"github.com/boinkkitty/quizette/backend/internal/app"
 	"github.com/boinkkitty/quizette/backend/internal/domain"
+	"github.com/boinkkitty/quizette/backend/internal/platform/logctx"
 )
 
 // DefaultModel is the free-tier model used unless configured otherwise.
@@ -26,9 +33,12 @@ const maxTextChars = 1_000_000
 
 // Config configures the generator.
 type Config struct {
-	APIKey   string
-	Model    string
-	Strategy string // domain.StrategyPDFNative or domain.StrategyTextExtract
+	APIKey string
+	Model  string
+	// FallbackModels are tried in order, after Model, when a call fails with a
+	// transient error (HTTP 408, 429 or 5xx). Empty means no fallback.
+	FallbackModels []string
+	Strategy       string // domain.StrategyPDFNative or domain.StrategyTextExtract
 	// Extractor is required for the text-extract strategy.
 	Extractor app.TextExtractor
 	// ThinkingBudget limits reasoning tokens (nil = model default, 0 = off).
@@ -77,7 +87,21 @@ func New(ctx context.Context, cfg Config) (*Generator, error) {
 // Strategy reports the configured input strategy.
 func (g *Generator) Strategy() string { return g.cfg.Strategy }
 
-// Generate implements app.QuestionGenerator. Metrics are returned even on error.
+// Models returns the primary model followed by the fallback models, in the
+// order they are tried.
+func (g *Generator) Models() []string {
+	models := []string{g.cfg.Model}
+	for _, m := range g.cfg.FallbackModels {
+		if m != "" && !slices.Contains(models, m) {
+			models = append(models, m)
+		}
+	}
+	return models
+}
+
+// Generate implements app.QuestionGenerator. Metrics are returned even on
+// error; Metrics.Model is the model that produced the final response, and
+// LLMMS and token counts describe that call only.
 func (g *Generator) Generate(ctx context.Context, in app.GenerateInput) (app.GenerationResult, error) {
 	start := time.Now()
 	res := app.GenerationResult{Metrics: domain.GenerationMetrics{Strategy: g.cfg.Strategy, Model: g.cfg.Model}}
@@ -116,9 +140,21 @@ func (g *Generator) Generate(ctx context.Context, in app.GenerateInput) (app.Gen
 		config.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: g.cfg.ThinkingBudget}
 	}
 
-	t1 := time.Now()
-	resp, err := g.client.Models.GenerateContent(ctx, g.cfg.Model, []*genai.Content{genai.NewContentFromParts(parts, genai.RoleUser)}, config)
-	res.Metrics.LLMMS = time.Since(t1).Milliseconds()
+	contents := []*genai.Content{genai.NewContentFromParts(parts, genai.RoleUser)}
+	var resp *genai.GenerateContentResponse
+	var err error
+	models := g.Models()
+	for i, model := range models {
+		res.Metrics.Model = model
+		t1 := time.Now()
+		resp, err = g.client.Models.GenerateContent(ctx, model, contents, config)
+		res.Metrics.LLMMS = time.Since(t1).Milliseconds()
+		if err == nil || !transient(err) || ctx.Err() != nil || i == len(models)-1 {
+			break
+		}
+		logctx.From(ctx, slog.Default()).WarnContext(ctx, "llm.fallback",
+			slog.String("model", model), slog.String("next_model", models[i+1]), slog.Any("error", err))
+	}
 	if resp != nil && resp.UsageMetadata != nil {
 		u := resp.UsageMetadata
 		res.Metrics.InputTokens = int(u.PromptTokenCount)
@@ -128,7 +164,10 @@ func (g *Generator) Generate(ctx context.Context, in app.GenerateInput) (app.Gen
 	}
 	res.Metrics.TotalMS = time.Since(start).Milliseconds()
 	if err != nil {
-		return res, fmt.Errorf("gemini generate: %w", err)
+		if transient(err) {
+			return res, fmt.Errorf("gemini generate (%s): %w: %w", res.Metrics.Model, app.ErrLLMUnavailable, err)
+		}
+		return res, fmt.Errorf("gemini generate (%s): %w", res.Metrics.Model, err)
 	}
 
 	var out app.GeneratedQuestionSet
@@ -138,4 +177,14 @@ func (g *Generator) Generate(ctx context.Context, in app.GenerateInput) (app.Gen
 	}
 	res.Drafts = out.ToDrafts()
 	return res, nil
+}
+
+// transient reports whether err is worth retrying on another model: a timeout,
+// a rate limit or quota error, or a server-side failure such as an overload.
+func transient(err error) bool {
+	var apiErr genai.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.Code == http.StatusRequestTimeout || apiErr.Code == http.StatusTooManyRequests || apiErr.Code >= 500
 }

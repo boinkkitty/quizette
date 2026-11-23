@@ -14,7 +14,9 @@ import (
 	"time"
 
 	qhttp "github.com/boinkkitty/quizette/backend/internal/adapters/http"
+	"github.com/boinkkitty/quizette/backend/internal/adapters/llm/fallback"
 	"github.com/boinkkitty/quizette/backend/internal/adapters/llm/gemini"
+	"github.com/boinkkitty/quizette/backend/internal/adapters/llm/openrouter"
 	"github.com/boinkkitty/quizette/backend/internal/adapters/llm/stub"
 	"github.com/boinkkitty/quizette/backend/internal/adapters/oauth"
 	"github.com/boinkkitty/quizette/backend/internal/adapters/pdf/ledongthuc"
@@ -97,7 +99,7 @@ func run() error {
 
 	errc := make(chan error, 1)
 	go func() {
-		logger.InfoContext(ctx, "http.listening", slog.String("addr", srv.Addr), slog.String("llm_provider", cfg.LLMProvider), slog.String("strategy", cfg.GenerationStrategy), slog.Any("oauth", identity.ProviderNames()))
+		logger.InfoContext(ctx, "http.listening", slog.String("addr", srv.Addr), slog.String("llm_provider", cfg.LLMProvider), slog.String("strategy", cfg.GenerationStrategy), slog.String("model", cfg.GeminiModel), slog.Any("fallback_models", cfg.GeminiFallbackModels), slog.Bool("openrouter", cfg.OpenRouterAPIKey != ""), slog.Any("openrouter_models", cfg.OpenRouterModels), slog.Any("oauth", identity.ProviderNames()))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errc <- err
 		}
@@ -127,10 +129,32 @@ func newGenerator(ctx context.Context, cfg config.Config) (app.QuestionGenerator
 	if cfg.LLMProvider == "stub" {
 		return stub.Generator{Delay: cfg.StubLLMDelay}, nil
 	}
-	g, err := gemini.New(ctx, gemini.Config{
-		APIKey: cfg.GeminiAPIKey, Model: cfg.GeminiModel, Strategy: cfg.GenerationStrategy,
-		Extractor: ledongthuc.Extractor{}, ThinkingBudget: cfg.GeminiThinkingBudget,
-	})
+	var links []fallback.Link
+	if cfg.LLMProvider == "gemini" {
+		g, err := gemini.New(ctx, gemini.Config{
+			APIKey: cfg.GeminiAPIKey, Model: cfg.GeminiModel, FallbackModels: cfg.GeminiFallbackModels, Strategy: cfg.GenerationStrategy,
+			Extractor: ledongthuc.Extractor{}, ThinkingBudget: cfg.GeminiThinkingBudget,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("llm: %w", err)
+		}
+		links = append(links, fallback.Link{Name: "gemini", Generator: g, Timeout: cfg.LLMAttemptTimeout})
+	}
+	if cfg.OpenRouterAPIKey != "" {
+		g, err := openrouter.New(openrouter.Config{
+			APIKey: cfg.OpenRouterAPIKey, Models: cfg.OpenRouterModels, Strategy: cfg.GenerationStrategy,
+			Extractor: ledongthuc.Extractor{}, PDFEngine: cfg.OpenRouterPDFEngine,
+			Referer: cfg.PublicURL, Title: "Quizette",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("llm: %w", err)
+		}
+		links = append(links, fallback.Link{Name: "openrouter", Generator: g, Timeout: cfg.LLMAttemptTimeout})
+	}
+	if len(links) == 1 {
+		return links[0].Generator, nil
+	}
+	g, err := fallback.New(links...)
 	if err != nil {
 		return nil, fmt.Errorf("llm: %w", err)
 	}
