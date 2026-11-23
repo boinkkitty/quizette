@@ -406,3 +406,15 @@ func TestProcessJobRetriesMalformedGeneratorOutput(t *testing.T) {
 		t.Fatalf("retry feedback = %v, want the malformed-output problem", e.gen.Calls)
 	}
 }
+
+// When every model or provider is busy, the user is told so instead of a generic failure.
+func TestProcessJobUnavailableReason(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, apptest.Fails(fmt.Errorf("%w: 503 overloaded", app.ErrLLMUnavailable)))
+	res := e.upload(t, "u1", 5)
+
+	job := e.store.Job(res.JobID)
+	if job.Status != domain.JobFailed || !strings.Contains(job.Error, "busy") {
+		t.Fatalf("job = %s %q, want failed with a busy reason", job.Status, job.Error)
+	}
+}

@@ -109,4 +109,5 @@ Sources:
 - Groq's free-plan tab, and whether it needs a card.
 - OpenRouter's current `:free` models that support structured outputs (`supported_parameters=structured_outputs` on the models API).
 - Question quality: compare `gemini-3.6-flash`, `3.5-flash` and `3.1-flash-lite` on the same real lecture PDFs, and run `make bench` for `pdf-native` against `text-extract`.
+- **OpenRouter backup:** implemented ([ADR 0008](../adr/0008-openrouter-backup-provider.md)); the default free models still need a live test.
 - **Resilience:** fallback models are in place (`GEMINI_FALLBACK_MODELS`). Retrying the same model with backoff isn't; add it if fallbacks also turn out to be overloaded at the same time.

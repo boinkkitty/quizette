@@ -19,6 +19,8 @@ services:
         value: pdf-native
       - key: GEMINI_FALLBACK_MODELS
         value: gemini-3.5-flash,gemini-3.1-flash-lite
+      - key: OPENROUTER_API_KEY
+        sync: false # optional: backup provider when every Gemini model is busy
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET

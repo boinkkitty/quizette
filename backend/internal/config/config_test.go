@@ -32,6 +32,13 @@ func TestLoad(t *testing.T) {
 		}
 	}
 
+	if c.LLMAttemptTimeout.String() != "1m30s" || c.OpenRouterPDFEngine != "cloudflare-ai" || len(c.OpenRouterModels) == 0 || c.OpenRouterAPIKey != "" {
+		t.Errorf("openrouter defaults: %+v", c)
+	}
+	if _, err := config.Load(env(map[string]string{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "k"})); err != nil {
+		t.Errorf("openrouter-only config (no Gemini key): %v", err)
+	}
+
 	bad := []map[string]string{
 		{}, // nothing set
 		{"DATABASE_URL": "x", "LLM_PROVIDER": "stub", "PUBLIC_URL": "https://a"}, // no PORT
@@ -41,6 +48,9 @@ func TestLoad(t *testing.T) {
 		{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "stub", "APP_ENV": "production"},
 		{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "stub", "GENERATION_STRATEGY": "ocr"},
 		{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "stub", "JOB_TIMEOUT": "soon"},
+		{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "openrouter"},                                                   // no OpenRouter key
+		{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "stub", "OPENROUTER_API_KEY": "k", "OPENROUTER_MODELS": "none"}, // key but no models
+		{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "stub", "LLM_ATTEMPT_TIMEOUT": "soon"},
 	}
 	if _, err := config.Load(env(map[string]string{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "GEMINI_API_KEY": "k", "APP_ENV": "production"})); err != nil {
 		t.Errorf("minimal production config: %v", err)

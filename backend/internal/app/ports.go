@@ -33,6 +33,11 @@ type QuestionGenerator interface {
 	Generate(ctx context.Context, in GenerateInput) (GenerationResult, error)
 }
 
+// ErrLLMUnavailable marks a transient generator failure, such as a rate limit,
+// an overloaded model or a timeout, where another model or provider may
+// succeed. QuestionGenerator implementations wrap such errors with it.
+var ErrLLMUnavailable = errors.New("question generator temporarily unavailable")
+
 // ErrUnreadableDocument means no usable content could be read from a document.
 var ErrUnreadableDocument = errors.New("document has no readable text")
 

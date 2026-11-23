@@ -164,6 +164,9 @@ func (g *Generator) Generate(ctx context.Context, in app.GenerateInput) (app.Gen
 	}
 	res.Metrics.TotalMS = time.Since(start).Milliseconds()
 	if err != nil {
+		if transient(err) {
+			return res, fmt.Errorf("gemini generate (%s): %w: %w", res.Metrics.Model, app.ErrLLMUnavailable, err)
+		}
 		return res, fmt.Errorf("gemini generate (%s): %w", res.Metrics.Model, err)
 	}
 

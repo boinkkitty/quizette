@@ -294,6 +294,8 @@ func userFacingReason(err error) string {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return "question generation timed out; please try again"
+	case errors.Is(err, ErrLLMUnavailable):
+		return "the AI models are busy right now; please try again in a few minutes"
 	case errors.Is(err, ErrUnreadableDocument):
 		return "we couldn't read any text from this PDF"
 	case errors.As(err, &ve):

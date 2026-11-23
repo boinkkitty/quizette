@@ -232,6 +232,10 @@ func TestFallbackModels(t *testing.T) {
 			if res.Metrics.Model != tt.wantModel {
 				t.Errorf("metrics model = %q, want %q", res.Metrics.Model, tt.wantModel)
 			}
+			// Only transient failures are marked unavailable, so a provider chain moves on.
+			if wantUnavail := tt.wantErr && tt.status["primary"] != 400; errors.Is(err, app.ErrLLMUnavailable) != wantUnavail {
+				t.Errorf("ErrLLMUnavailable = %v, want %v (err: %v)", !wantUnavail, wantUnavail, err)
+			}
 			if !tt.wantErr && len(res.Drafts) != 5 {
 				t.Errorf("drafts = %d, want 5", len(res.Drafts))
 			}
