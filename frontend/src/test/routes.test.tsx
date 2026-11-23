@@ -241,33 +241,38 @@ describe('view questions', () => {
 
     expect(await screen.findByRole('heading', { name: 'Powerhouse of the cell?' })).toBeInTheDocument()
     expect(screen.getByText('Question 1 of 3')).toBeInTheDocument()
-    // No options to pick, and the answer is hidden.
+    // The options are listed but not selectable, and nothing is marked yet.
+    const options = () => within(screen.getByRole('list', { name: 'Options' })).getAllByRole('listitem')
+    expect(options().map((o) => o.textContent)).toEqual(['ANucleus', 'BMitochondria', 'CRibosome', 'DGolgi'])
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
-    expect(screen.queryByText('Mitochondria')).not.toBeInTheDocument()
+    expect(screen.queryByText('Correct')).not.toBeInTheDocument()
+    expect(screen.queryByText('Why q1.')).not.toBeInTheDocument()
 
     await u.click(screen.getByRole('button', { name: 'Show answer' }))
-    expect(screen.getByText('Mitochondria')).toBeInTheDocument()
+    expect(within(options()[1] as HTMLElement).getByText('Correct')).toBeInTheDocument() // Mitochondria
+    expect(screen.getAllByText('Correct')).toHaveLength(1)
     expect(screen.getByText('Why q1.')).toBeInTheDocument()
 
     // Skip question 2 without revealing it.
     await u.click(screen.getByRole('button', { name: 'Next' }))
     expect(screen.getByText('Question 2 of 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show answer' })).toBeInTheDocument()
-    expect(screen.queryByText('Why q2.')).not.toBeInTheDocument()
+    expect(options().map((o) => o.textContent)).toEqual(['ATrue', 'BFalse'])
+    expect(screen.queryByText('Correct')).not.toBeInTheDocument()
 
+    // MRQ: every correct option is marked.
     await u.click(screen.getByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('button', { name: 'Show answer' }))
-    expect(screen.getByText('Answers')).toBeInTheDocument()
-    expect(screen.getByText('Nucleus')).toBeInTheDocument()
-    expect(screen.getByText('Ribosome')).toBeInTheDocument()
+    const marked = options().filter((o) => within(o).queryByText('Correct') !== null).map((o) => o.textContent)
+    expect(marked).toEqual(['NucleusCorrect', 'RibosomeCorrect'])
     expect(screen.getByRole('link', { name: 'Done' })).toHaveAttribute('href', '/quizzes/t1')
 
     // Going back keeps question 1 revealed; hiding works too.
     await u.click(screen.getByRole('button', { name: 'Previous' }))
     await u.click(screen.getByRole('button', { name: 'Previous' }))
-    expect(screen.getByText('Mitochondria')).toBeInTheDocument()
+    expect(screen.getAllByText('Correct')).toHaveLength(1)
     await u.click(screen.getByRole('button', { name: 'Hide answer' }))
-    expect(screen.queryByText('Mitochondria')).not.toBeInTheDocument()
+    expect(screen.queryByText('Correct')).not.toBeInTheDocument()
+    expect(options()).toHaveLength(4) // options stay visible
   })
 })
 

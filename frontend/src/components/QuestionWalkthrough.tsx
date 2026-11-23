@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { cn } from '@/lib/utils'
 
 import type { Question } from '../api/schemas'
 import { questionTypeLabel } from '../lib/format'
@@ -16,9 +17,9 @@ interface Props {
 }
 
 /**
- * Study mode: the quiz layout, one question per screen, but nothing to answer.
- * Each question's answer stays hidden until "Show answer" is pressed; the choice
- * is remembered when moving back and forth.
+ * Study mode: the quiz layout, one question per screen, with its options shown but not
+ * selectable. "Show answer" marks the correct option(s) in place and adds the
+ * explanation; the choice is remembered when moving back and forth.
  */
 export function QuestionWalkthrough({ questions, finish }: Props) {
   const [index, setIndex] = useState(0)
@@ -28,10 +29,7 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
 
   const shown = revealed.has(question.id)
   const isLast = index === questions.length - 1
-  const correct = (question.correct ?? []).flatMap((i) => {
-    const text = question.options[i]
-    return text === undefined ? [] : [text]
-  })
+  const correct = new Set(question.correct ?? [])
   const toggle = (): void => {
     setRevealed((prev) => {
       const next = new Set(prev)
@@ -58,25 +56,44 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
           <p className="text-xs font-medium tracking-wide text-primary uppercase">{questionTypeLabel[question.type]}</p>
           <h2 className="text-lg font-medium">{question.prompt}</h2>
 
-          {shown ? (
-            <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4" aria-live="polite">
-              <div>
-                <p className="text-xs font-medium text-green-800 uppercase">{correct.length > 1 ? 'Answers' : 'Answer'}</p>
-                <ul className="mt-1 space-y-1">
-                  {correct.map((text) => (
-                    <li key={text} className="flex items-center gap-2 font-medium text-green-900">
-                      <CheckIcon className="size-4 shrink-0" aria-hidden />
-                      {text}
-                    </li>
-                  ))}
-                </ul>
+          <ol className="grid gap-2" aria-label="Options">
+            {question.options.map((opt, i) => {
+              const isCorrect = shown && correct.has(i)
+              return (
+                <li
+                  key={opt}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors',
+                    isCorrect && 'border-green-300 bg-green-50 font-medium text-green-900',
+                    shown && !isCorrect && 'text-muted-foreground',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium',
+                      isCorrect ? 'border-green-600 bg-green-600 text-white' : 'text-muted-foreground',
+                    )}
+                    aria-hidden
+                  >
+                    {isCorrect ? <CheckIcon className="size-3.5" /> : String.fromCharCode(65 + i)}
+                  </span>
+                  <span className="flex-1">{opt}</span>
+                  {isCorrect && <span className="text-xs font-medium text-green-700">Correct</span>}
+                </li>
+              )
+            })}
+          </ol>
+
+          {shown &&
+            ((question.explanation !== undefined && question.explanation !== '') ||
+              (question.sourceHint !== undefined && question.sourceHint !== '')) && (
+              <div className="space-y-2 rounded-lg bg-muted/60 p-4 text-sm" aria-live="polite">
+                {question.explanation !== undefined && question.explanation !== '' && <p>{question.explanation}</p>}
+                {question.sourceHint !== undefined && question.sourceHint !== '' && (
+                  <p className="text-xs text-muted-foreground">Source: {question.sourceHint}</p>
+                )}
               </div>
-              {question.explanation !== undefined && question.explanation !== '' && <p className="text-sm text-green-900">{question.explanation}</p>}
-              {question.sourceHint !== undefined && question.sourceHint !== '' && (
-                <p className="text-xs text-green-800">Source: {question.sourceHint}</p>
-              )}
-            </div>
-          ) : null}
+            )}
 
           <Button variant={shown ? 'outline' : 'secondary'} onClick={toggle}>
             {shown ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />}
