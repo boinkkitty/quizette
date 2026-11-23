@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "required": ["questions"],
+  "properties": {
+    "questions": {
+      "type": "array",
+      "minItems": 5,
+      "description": "Exactly the number of questions the instructions ask for.",
+      "items": {
+        "type": "object",
+        "required": ["type", "prompt", "options", "correctIndices", "explanation"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["mcq", "true_false", "mrq"],
+            "description": "Question format; the rules for each type are in the instructions."
+          },
+          "prompt": { "type": "string", "description": "The question text, answerable from the document alone." },
+          "options": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 2,
+            "maxItems": 5
+          },
+          "correctIndices": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 0 },
+            "minItems": 1,
+            "description": "Zero-based indices into options."
+          },
+          "explanation": { "type": "string", "description": "Why the correct answer(s) are correct, citing the document." },
+          "sourceHint": { "type": "string", "description": "Section or page the question is drawn from." }
+        }
+      }
+    }
+  }
+}

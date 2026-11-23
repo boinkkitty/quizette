@@ -1,0 +1,19 @@
+# Go
+backend/genbench-results.csv
+# Benchmark PDFs (local only; `make fixture` regenerates the sample).
+backend/testdata/
+# Node
+node_modules/
+dist/
+.wrangler/
+e2e/test-results/
+e2e/playwright-report/
+# Env
+.env
+.env.*
+!.env.example
+.dev.vars
+.DS_Store
+
+# Personal setup notes (local only).
+SETUP.md
