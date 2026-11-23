@@ -25,6 +25,7 @@ type Config struct {
 	LLMProvider          string // gemini | stub
 	GeminiAPIKey         string
 	GeminiModel          string
+	GeminiFallbackModels []string
 	GenerationStrategy   string
 	GeminiThinkingBudget *int32
 	StubLLMDelay         time.Duration
@@ -93,6 +94,15 @@ func Load(getenv func(string) string) (Config, error) {
 		GoogleClientSecret: str("GOOGLE_CLIENT_SECRET", ""),
 		GitHubClientID:     str("GITHUB_CLIENT_ID", ""),
 		GitHubClientSecret: str("GITHUB_CLIENT_SECRET", ""),
+	}
+	// Both defaults passed the pipeline test in docs/research/llm-models.md.
+	// "none" turns fallback off.
+	if v := str("GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-3.1-flash-lite"); v != "none" {
+		for _, m := range strings.Split(v, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				c.GeminiFallbackModels = append(c.GeminiFallbackModels, m)
+			}
+		}
 	}
 	if v := getenv("GEMINI_THINKING_BUDGET"); v != "" {
 		n := int32(num("GEMINI_THINKING_BUDGET", 0)) //nolint:gosec // small config value

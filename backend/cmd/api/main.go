@@ -97,7 +97,7 @@ func run() error {
 
 	errc := make(chan error, 1)
 	go func() {
-		logger.InfoContext(ctx, "http.listening", slog.String("addr", srv.Addr), slog.String("llm_provider", cfg.LLMProvider), slog.String("strategy", cfg.GenerationStrategy), slog.Any("oauth", identity.ProviderNames()))
+		logger.InfoContext(ctx, "http.listening", slog.String("addr", srv.Addr), slog.String("llm_provider", cfg.LLMProvider), slog.String("strategy", cfg.GenerationStrategy), slog.String("model", cfg.GeminiModel), slog.Any("fallback_models", cfg.GeminiFallbackModels), slog.Any("oauth", identity.ProviderNames()))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errc <- err
 		}
@@ -128,7 +128,7 @@ func newGenerator(ctx context.Context, cfg config.Config) (app.QuestionGenerator
 		return stub.Generator{Delay: cfg.StubLLMDelay}, nil
 	}
 	g, err := gemini.New(ctx, gemini.Config{
-		APIKey: cfg.GeminiAPIKey, Model: cfg.GeminiModel, Strategy: cfg.GenerationStrategy,
+		APIKey: cfg.GeminiAPIKey, Model: cfg.GeminiModel, FallbackModels: cfg.GeminiFallbackModels, Strategy: cfg.GenerationStrategy,
 		Extractor: ledongthuc.Extractor{}, ThinkingBudget: cfg.GeminiThinkingBudget,
 	})
 	if err != nil {

@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/boinkkitty/quizette/backend/internal/config"
@@ -16,6 +17,19 @@ func TestLoad(t *testing.T) {
 	}
 	if c.Port != "9000" || c.PublicURL != "https://app.example" || c.GenerationStrategy != "pdf-native" {
 		t.Errorf("defaults: %+v", c)
+	}
+
+	if want := []string{"gemini-3.5-flash", "gemini-3.1-flash-lite"}; !slices.Equal(c.GeminiFallbackModels, want) {
+		t.Errorf("fallback models = %v, want %v", c.GeminiFallbackModels, want)
+	}
+	for v, want := range map[string][]string{"none": nil, "a, ,b": {"a", "b"}} {
+		c, err := config.Load(env(map[string]string{"PORT": "1", "DATABASE_URL": "x", "PUBLIC_URL": "https://a", "LLM_PROVIDER": "stub", "GEMINI_FALLBACK_MODELS": v}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(c.GeminiFallbackModels, want) {
+			t.Errorf("GEMINI_FALLBACK_MODELS=%q: got %v, want %v", v, c.GeminiFallbackModels, want)
+		}
 	}
 
 	bad := []map[string]string{
