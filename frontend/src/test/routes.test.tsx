@@ -91,7 +91,7 @@ describe('routing', () => {
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
 
     expect(await screen.findByTestId('score')).toHaveTextContent('2.5 / 5')
-    expect(window.localStorage.getItem('quizette:quiz-progress:a1')).toBeNull() // saved progress cleared once submitted
+    expect(window.sessionStorage.getItem('quizette:quiz-progress:a1')).toBeNull() // saved progress cleared once submitted
     expect(router.state.location.pathname).toBe('/attempts/a1/results')
     expect(screen.getByText('0.5 / 1 point')).toBeInTheDocument()
     expect(body).toEqual({ answers: [{ questionId: 'q1', selected: [1] }, { questionId: 'q2', selected: [1] }, { questionId: 'q3', selected: [0] }] })

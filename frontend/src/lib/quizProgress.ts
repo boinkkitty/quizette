@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
 /**
- * Saves an in-progress quiz (answers and current question) in localStorage, so a
- * reload or an accidentally closed tab doesn't lose it. Keyed by attempt, cleared once
- * the attempt is submitted. Storage failures (private mode, quota) are ignored: the
+ * Saves an in-progress quiz (answers and current question) in sessionStorage, so a
+ * reload doesn't lose it. sessionStorage lasts as long as the tab: closing it discards
+ * the progress, and nothing lingers on a shared computer. Keyed by attempt, cleared
+ * once the attempt is submitted. Storage failures (private mode, quota) are ignored: the
  * quiz still works, it just isn't restored.
  */
 export interface QuizProgress {
@@ -22,7 +23,7 @@ const storedSchema = z.object({
 export function loadQuizProgress(attemptId: string, questionIds: readonly string[]): QuizProgress {
   const empty: QuizProgress = { index: 0, responses: new Map() }
   try {
-    const raw = window.localStorage.getItem(key(attemptId))
+    const raw = window.sessionStorage.getItem(key(attemptId))
     if (raw === null) return empty
     const parsed = storedSchema.safeParse(JSON.parse(raw))
     if (!parsed.success) return empty
@@ -36,7 +37,7 @@ export function loadQuizProgress(attemptId: string, questionIds: readonly string
 
 export function saveQuizProgress(attemptId: string, progress: QuizProgress): void {
   try {
-    window.localStorage.setItem(key(attemptId), JSON.stringify({ index: progress.index, responses: Object.fromEntries(progress.responses) }))
+    window.sessionStorage.setItem(key(attemptId), JSON.stringify({ index: progress.index, responses: Object.fromEntries(progress.responses) }))
   } catch {
     // Not saved; the quiz keeps working.
   }
@@ -44,7 +45,7 @@ export function saveQuizProgress(attemptId: string, progress: QuizProgress): voi
 
 export function clearQuizProgress(attemptId: string): void {
   try {
-    window.localStorage.removeItem(key(attemptId))
+    window.sessionStorage.removeItem(key(attemptId))
   } catch {
     // Nothing to clear.
   }

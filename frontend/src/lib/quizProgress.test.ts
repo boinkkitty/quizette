@@ -21,9 +21,9 @@ describe('quiz progress storage', () => {
   })
 
   it('starts fresh when the saved data is corrupt', () => {
-    window.localStorage.setItem('quizette:quiz-progress:a1', '{"index":"x"')
+    window.sessionStorage.setItem('quizette:quiz-progress:a1', '{"index":"x"')
     expect(loadQuizProgress('a1', ['q1'])).toEqual({ index: 0, responses: new Map() })
-    window.localStorage.setItem('quizette:quiz-progress:a1', JSON.stringify({ index: -1, responses: { q1: ['a'] } }))
+    window.sessionStorage.setItem('quizette:quiz-progress:a1', JSON.stringify({ index: -1, responses: { q1: ['a'] } }))
     expect(loadQuizProgress('a1', ['q1'])).toEqual({ index: 0, responses: new Map() })
   })
 })

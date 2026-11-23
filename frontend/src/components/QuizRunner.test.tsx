@@ -58,7 +58,7 @@ describe('QuizRunner', () => {
 // accidental reload) silently threw away every answer and the current position.
 describe('QuizRunner progress after a reload', () => {
   it('restores answers and position for the same attempt, but not for another', async () => {
-    window.localStorage.clear()
+    window.sessionStorage.clear()
     const user = userEvent.setup()
     const first = render(<QuizRunner attemptId="a1" questions={attempt().questions} submitting={false} onSubmit={vi.fn<(r: Responses) => void>()} />)
     await user.click(screen.getByRole('radio', { name: 'Mitochondria' }))
