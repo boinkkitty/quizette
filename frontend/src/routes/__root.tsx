@@ -3,8 +3,6 @@ import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router
 
 import { Toaster } from '@/components/ui/sonner'
 
-import { ServerWakeBanner } from '../components/ServerWakeBanner'
-
 export interface RouterContext {
   queryClient: QueryClient
 }
@@ -26,7 +24,6 @@ function RootLayout() {
   return (
     <>
       <div className="min-h-screen bg-background">
-        <ServerWakeBanner />
         <Outlet />
       </div>
       <Toaster position="bottom-right" />
