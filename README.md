@@ -63,6 +63,7 @@ When Gemini's free tier is overloaded, uploads can fall back to free OpenRouter 
 1. **Neon** — create a project; copy the *pooled* connection string.
 2. **Render** — new Blueprint from `render.yaml` (Docker, `backend/`). Set `DATABASE_URL`, `GEMINI_API_KEY`, `PUBLIC_URL` (the Worker URL), and optional OAuth secrets.
 3. **Cloudflare** — copy `worker/.env.example` to `worker/.env` and set `API_ORIGIN` there to the Render URL, then `cd worker && pnpm install && pnpm exec wrangler login && pnpm run deploy`. The dev and deploy scripts load this git-ignored file and pass the origin as a Worker binding. An existing `API_ORIGIN` environment variable takes precedence, so CI can supply it without a file.
+   After the first manual deploy, CI deploys the Worker on every push to `main` once all checks pass. It needs repo secrets `CLOUDFLARE_API_TOKEN` (Cloudflare template "Edit Cloudflare Workers") and `CLOUDFLARE_ACCOUNT_ID`, and repo variable `API_ORIGIN`. To try a change without touching production, run `pnpm preview` in `worker/` for a preview URL.
 4. **OAuth** (optional) — register redirect URIs `https://<worker-host>/api/auth/google/callback` and `.../github/callback`.
 
 Render's free tier sleeps after 15 idle minutes; the UI shows a "waking up the server" banner during the ~30–60s cold start.
