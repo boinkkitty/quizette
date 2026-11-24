@@ -21,8 +21,8 @@ try {
 }
 
 const [command, ...args] = process.argv.slice(2)
-if (!['dev', 'deploy'].includes(command)) {
-  console.error('Usage: node scripts/wrangler.mjs <dev|deploy> [Wrangler options]')
+if (!['dev', 'deploy', 'versions'].includes(command)) {
+  console.error('Usage: node scripts/wrangler.mjs <dev|deploy|versions> [Wrangler options]')
   process.exit(1)
 }
 

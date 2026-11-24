@@ -1,12 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "react",
-    "typescript",
-    "oxc",
-    "import",
-    "vitest"
-  ],
+  "plugins": ["react", "typescript", "oxc", "import", "vitest"],
   "categories": {
     "correctness": "error",
     "suspicious": "error"
@@ -29,49 +23,33 @@
     "no-console": [
       "error",
       {
-        "allow": [
-          "warn",
-          "error"
-        ]
+        "allow": ["warn", "error"]
       }
     ],
     "eqeqeq": "error",
     "import/no-unassigned-import": [
       "error",
       {
-        "allow": [
-          "**/*.css",
-          "@testing-library/jest-dom/vitest"
-        ]
+        "allow": ["**/*.css", "@testing-library/jest-dom/vitest"]
       }
     ]
   },
-  "ignorePatterns": [
-    "src/routeTree.gen.ts",
-    "dist"
-  ],
+  "ignorePatterns": ["src/routeTree.gen.ts", "dist"],
   "overrides": [
     {
-      "files": [
-        "src/routes/**/*.tsx"
-      ],
+      "files": ["src/routes/**/*.tsx"],
       "rules": {
         "react/only-export-components": "off"
       }
     },
     {
-      "files": [
-        "src/**/*.test.{ts,tsx}",
-        "src/test/**"
-      ],
+      "files": ["src/**/*.test.{ts,tsx}", "src/test/**"],
       "rules": {
         "typescript/no-non-null-assertion": "off"
       }
     },
     {
-      "files": [
-        "src/components/ui/**"
-      ],
+      "files": ["src/components/ui/**"],
       "rules": {
         "react/only-export-components": "off"
       }

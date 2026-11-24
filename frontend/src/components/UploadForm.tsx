@@ -23,7 +23,10 @@ interface Props {
 }
 
 export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props) {
-  const initialTopic = defaultTopicId !== undefined && topics.some((t) => t.id === defaultTopicId) ? defaultTopicId : (topics[0]?.id ?? NEW_TOPIC)
+  const initialTopic =
+    defaultTopicId !== undefined && topics.some((t) => t.id === defaultTopicId)
+      ? defaultTopicId
+      : (topics[0]?.id ?? NEW_TOPIC)
   const [topicChoice, setTopicChoice] = useState(initialTopic)
   const [newTopic, setNewTopic] = useState('')
   const [title, setTitle] = useState('')
@@ -62,7 +65,10 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
       file,
       count,
       title: title.trim(),
-      topic: topicChoice === NEW_TOPIC ? { kind: 'new', name: newTopic.trim() } : { kind: 'existing', id: topicChoice },
+      topic:
+        topicChoice === NEW_TOPIC
+          ? { kind: 'new', name: newTopic.trim() }
+          : { kind: 'existing', id: topicChoice },
     })
   }
 
@@ -77,20 +83,32 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
         onDrop={onDrop}
         className={cn(
           'flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
-          dragging ? 'border-primary bg-secondary' : 'border-border hover:border-primary hover:bg-secondary/50',
+          dragging
+            ? 'border-primary bg-secondary'
+            : 'border-border hover:border-primary hover:bg-secondary/50',
         )}
       >
         <FileUpIcon className="mb-3 size-8 text-primary" aria-hidden />
-        <input type="file" accept="application/pdf,.pdf" className="sr-only" aria-label="PDF file" onChange={(e) => pickFile(e.target.files?.[0])} />
+        <input
+          type="file"
+          accept="application/pdf,.pdf"
+          className="sr-only"
+          aria-label="PDF file"
+          onChange={(e) => pickFile(e.target.files?.[0])}
+        />
         {file === null ? (
           <>
             <span className="font-medium">Drop a PDF here or click to browse</span>
-            <span className="mt-1 text-xs text-muted-foreground">Up to 15 MB. The file is only read to generate questions — it is never stored.</span>
+            <span className="mt-1 text-xs text-muted-foreground">
+              Up to 15 MB. The file is only read to generate questions — it is never stored.
+            </span>
           </>
         ) : (
           <>
             <span className="font-medium">{file.name}</span>
-            <span className="mt-1 text-xs text-muted-foreground">{formatBytes(file.size)} · click to change</span>
+            <span className="mt-1 text-xs text-muted-foreground">
+              {formatBytes(file.size)} · click to change
+            </span>
           </>
         )}
       </label>
@@ -103,7 +121,12 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Topic">
           {(c) => (
-            <NativeSelect className="w-full" {...c} value={topicChoice} onChange={(e) => setTopicChoice(e.target.value)}>
+            <NativeSelect
+              className="w-full"
+              {...c}
+              value={topicChoice}
+              onChange={(e) => setTopicChoice(e.target.value)}
+            >
               {topics.map((t) => (
                 <NativeSelectOption key={t.id} value={t.id}>
                   {t.name}
@@ -115,15 +138,35 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
         </Field>
         {topicChoice === NEW_TOPIC && (
           <Field label="New topic name" error={topicError}>
-            {(c) => <Input {...c} value={newTopic} onChange={(e) => setNewTopic(e.target.value)} placeholder="e.g. Biology" maxLength={120} />}
+            {(c) => (
+              <Input
+                {...c}
+                value={newTopic}
+                onChange={(e) => setNewTopic(e.target.value)}
+                placeholder="e.g. Biology"
+                maxLength={120}
+              />
+            )}
           </Field>
         )}
         <Field label="Chapter title" hint="Defaults to the file name">
-          {(c) => <Input {...c} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />}
+          {(c) => (
+            <Input
+              {...c}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={120}
+            />
+          )}
         </Field>
         <Field label="Questions to generate" hint="The bank you'll practise from">
           {(c) => (
-            <NativeSelect className="w-full" {...c} value={count} onChange={(e) => setCount(Number(e.target.value))}>
+            <NativeSelect
+              className="w-full"
+              {...c}
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
+            >
               {countOptions(MAX_BANK_SIZE).map((n) => (
                 <NativeSelectOption key={n} value={n}>
                   {n}

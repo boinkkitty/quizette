@@ -27,23 +27,27 @@ function ResultsPage() {
       <PageHeader
         title="Results"
         subtitle={
-          <Link to="/chapters/$chapterId" params={{ chapterId: attempt.chapterId }} className="hover:text-primary hover:underline">
+          <Link
+            to="/chapters/$chapterId"
+            params={{ chapterId: attempt.chapterId }}
+            className="hover:text-primary hover:underline"
+          >
             ← {attempt.chapterTitle}
           </Link>
         }
       />
       <Card className="mb-6 border-primary/20 bg-secondary/40">
         <CardContent className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">Score</p>
-          <p className="text-3xl font-semibold" data-testid="score">
-            {formatPoints(attempt.totalScore)} / {attempt.maxScore}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {correctCount} fully correct · select-all questions earn partial credit
-          </p>
-        </div>
-        <p className="text-4xl font-semibold text-primary">{formatPct(attempt.scorePct)}</p>
+          <div>
+            <p className="text-sm text-muted-foreground">Score</p>
+            <p className="text-3xl font-semibold" data-testid="score">
+              {formatPoints(attempt.totalScore)} / {attempt.maxScore}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {correctCount} fully correct · select-all questions earn partial credit
+            </p>
+          </div>
+          <p className="text-4xl font-semibold text-primary">{formatPct(attempt.scorePct)}</p>
         </CardContent>
       </Card>
       <ol className="space-y-4">

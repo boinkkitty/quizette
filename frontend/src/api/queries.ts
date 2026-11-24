@@ -62,13 +62,15 @@ export const topicsQuery = queryOptions({
   queryFn: ({ signal }) => request(z.array(topicSchema), '/topics', { signal }),
 })
 
-const isProcessing = (status: string): boolean => status === 'pending' || status === 'queued' || status === 'running'
+const isProcessing = (status: string): boolean =>
+  status === 'pending' || status === 'queued' || status === 'running'
 
 export const topicQuery = (id: string) =>
   queryOptions({
     queryKey: keys.topic(id),
     queryFn: ({ signal }) => request(topicDetailSchema, `/topics/${id}`, { signal }),
-    refetchInterval: (q) => (q.state.data?.chapters.some((c) => isProcessing(c.status)) === true ? 3000 : false),
+    refetchInterval: (q) =>
+      q.state.data?.chapters.some((c) => isProcessing(c.status)) === true ? 3000 : false,
   })
 
 export interface ChapterFilter {
@@ -85,9 +87,12 @@ export const chaptersQuery = (filter: ChapterFilter = {}) =>
       if (filter.status !== undefined) params.set('status', filter.status)
       if (filter.topicId !== undefined) params.set('topicId', filter.topicId)
       const qs = params.toString()
-      return request(z.array(chapterSummarySchema), qs === '' ? '/chapters' : `/chapters?${qs}`, { signal })
+      return request(z.array(chapterSummarySchema), qs === '' ? '/chapters' : `/chapters?${qs}`, {
+        signal,
+      })
     },
-    refetchInterval: (q) => (q.state.data?.some((c) => isProcessing(c.status)) === true ? 3000 : false),
+    refetchInterval: (q) =>
+      q.state.data?.some((c) => isProcessing(c.status)) === true ? 3000 : false,
   })
 
 /** The user's most recent attempts across all chapters, newest first (the History page). */
@@ -100,20 +105,23 @@ export const chapterQuery = (id: string) =>
   queryOptions({
     queryKey: keys.chapter(id),
     queryFn: ({ signal }) => request(chapterSchema, `/chapters/${id}`, { signal }),
-    refetchInterval: (q) => (q.state.data !== undefined && isProcessing(q.state.data.status) ? 3000 : false),
+    refetchInterval: (q) =>
+      q.state.data !== undefined && isProcessing(q.state.data.status) ? 3000 : false,
   })
 
 export const questionSetQuery = (chapterId: string) =>
   queryOptions({
     queryKey: keys.questionSet(chapterId),
-    queryFn: ({ signal }) => request(questionSetSchema, `/chapters/${chapterId}/question-set`, { signal }),
+    queryFn: ({ signal }) =>
+      request(questionSetSchema, `/chapters/${chapterId}/question-set`, { signal }),
     staleTime: Infinity, // sets are immutable
   })
 
 export const attemptsQuery = (chapterId: string) =>
   queryOptions({
     queryKey: keys.attempts(chapterId),
-    queryFn: ({ signal }) => request(z.array(attemptSummarySchema), `/chapters/${chapterId}/attempts`, { signal }),
+    queryFn: ({ signal }) =>
+      request(z.array(attemptSummarySchema), `/chapters/${chapterId}/attempts`, { signal }),
   })
 
 export const attemptQuery = (id: string) =>
@@ -127,10 +135,12 @@ export const jobQuery = (id: string) =>
   queryOptions({
     queryKey: keys.job(id),
     queryFn: ({ signal }) => request(jobSchema, `/jobs/${id}`, { signal }),
-    refetchInterval: (q) => (q.state.data !== undefined && !isProcessing(q.state.data.status) ? false : 2000),
+    refetchInterval: (q) =>
+      q.state.data !== undefined && !isProcessing(q.state.data.status) ? false : 2000,
   })
 
-export const isJobDone = (job: Job): boolean => job.status === 'succeeded' || job.status === 'failed'
+export const isJobDone = (job: Job): boolean =>
+  job.status === 'succeeded' || job.status === 'failed'
 
 // ---- mutations ----
 
@@ -143,7 +153,8 @@ export interface Credentials {
 export function useAuthMutation(mode: 'login' | 'signup') {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (c: Credentials) => request(userSchema, `/auth/${mode}`, { method: 'POST', json: c }),
+    mutationFn: (c: Credentials) =>
+      request(userSchema, `/auth/${mode}`, { method: 'POST', json: c }),
     onSuccess: (user) => {
       qc.setQueryData(keys.me, user)
     },
@@ -191,7 +202,11 @@ export function useUpload() {
 export function useStartAttempt(chapterId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (count: number) => request(attemptSchema, `/chapters/${chapterId}/attempts`, { method: 'POST', json: { count } }),
+    mutationFn: (count: number) =>
+      request(attemptSchema, `/chapters/${chapterId}/attempts`, {
+        method: 'POST',
+        json: { count },
+      }),
     onSuccess: async (attempt) => {
       qc.setQueryData(keys.attempt(attempt.id), attempt)
       await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })

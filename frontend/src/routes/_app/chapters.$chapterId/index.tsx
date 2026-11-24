@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 
-import { attemptsQuery, chapterQuery, questionSetQuery, useDeleteChapter, useStartAttempt } from '../../../api/queries'
+import {
+  attemptsQuery,
+  chapterQuery,
+  questionSetQuery,
+  useDeleteChapter,
+  useStartAttempt,
+} from '../../../api/queries'
 import type { Chapter } from '../../../api/schemas'
 import { ErrorMessage } from '../../../components/ErrorMessage'
 import { JobProgress } from '../../../components/JobProgress'
@@ -23,7 +29,8 @@ import { Spinner } from '../../../components/Spinner'
 import { countOptions, formatDate, formatPct, formatPoints } from '../../../lib/format'
 
 export const Route = createFileRoute('/_app/chapters/$chapterId/')({
-  loader: ({ context, params }) => context.queryClient.ensureQueryData(chapterQuery(params.chapterId)),
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(chapterQuery(params.chapterId)),
   component: ChapterPage,
 })
 
@@ -39,7 +46,11 @@ function ChapterPage() {
         title={chapter.title}
         subtitle={
           <span className="flex items-center gap-2">
-            <Link to="/topics/$topicId" params={{ topicId: chapter.topicId }} className="hover:text-primary hover:underline">
+            <Link
+              to="/topics/$topicId"
+              params={{ topicId: chapter.topicId }}
+              className="hover:text-primary hover:underline"
+            >
               ← {chapter.topicName}
             </Link>
             <StatusBadge status={chapter.status} />
@@ -68,20 +79,26 @@ function ChapterPage() {
           />
         }
       />
-      {chapter.status === 'pending' && chapter.latestJob !== null && <JobProgress jobId={chapter.latestJob.id} chapterId={chapter.id} />}
+      {chapter.status === 'pending' && chapter.latestJob !== null && (
+        <JobProgress jobId={chapter.latestJob.id} chapterId={chapter.id} />
+      )}
       {chapter.status === 'failed' && (
         <Alert variant="destructive">
           <CircleAlertIcon />
           <AlertTitle>Question generation failed</AlertTitle>
           <AlertDescription>
-          <p>{chapter.latestJob?.error ?? 'Please try again.'}</p>
-          <p>
-            PDFs aren't stored, so{' '}
-            <Link to="/upload" search={{ topicId: chapter.topicId }} className="font-medium underline">
-              re-upload the PDF
-            </Link>{' '}
-            to try again.
-          </p>
+            <p>{chapter.latestJob?.error ?? 'Please try again.'}</p>
+            <p>
+              PDFs aren't stored, so{' '}
+              <Link
+                to="/upload"
+                search={{ topicId: chapter.topicId }}
+                className="font-medium underline"
+              >
+                re-upload the PDF
+              </Link>{' '}
+              to try again.
+            </p>
           </AlertDescription>
         </Alert>
       )}
@@ -104,31 +121,42 @@ function ReadyChapter({ chapter }: { chapter: Chapter }) {
           <CardTitle>
             <h2 className="font-semibold">Start a quiz</h2>
           </CardTitle>
-          <CardDescription>{chapter.questionCount} questions in this bank. Questions you haven't seen or got wrong come first.</CardDescription>
+          <CardDescription>
+            {chapter.questionCount} questions in this bank. Questions you haven't seen or got wrong
+            come first.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-        <Field label="Number of questions">
-{(c) => (
-<NativeSelect className="w-full" {...c} value={count} onChange={(e) => setCount(Number(e.target.value))}>
-            {options.map((n) => (
-              <NativeSelectOption key={n} value={n}>
-                {n}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-)}
-</Field>
-        {start.isError && <ErrorMessage error={start.error} title="Could not start quiz" />}
-        <Button
-          size="lg"
-          className="w-full"
-          disabled={start.isPending}
-          onClick={() => {
-            start.mutate(count, { onSuccess: (a) => void navigate({ to: '/attempts/$attemptId', params: { attemptId: a.id } }) })
-          }}
-        >
-          {start.isPending && <Spinner />} Start quiz
-        </Button>
+          <Field label="Number of questions">
+            {(c) => (
+              <NativeSelect
+                className="w-full"
+                {...c}
+                value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
+              >
+                {options.map((n) => (
+                  <NativeSelectOption key={n} value={n}>
+                    {n}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            )}
+          </Field>
+          {start.isError && <ErrorMessage error={start.error} title="Could not start quiz" />}
+          <Button
+            size="lg"
+            className="w-full"
+            disabled={start.isPending}
+            onClick={() => {
+              start.mutate(count, {
+                onSuccess: (a) =>
+                  void navigate({ to: '/attempts/$attemptId', params: { attemptId: a.id } }),
+              })
+            }}
+          >
+            {start.isPending && <Spinner />} Start quiz
+          </Button>
         </CardContent>
       </Card>
 
@@ -150,7 +178,8 @@ function AttemptHistory({ chapterId }: { chapterId: string }) {
   if (isPending) return <Spinner />
   if (error !== null) return <ErrorMessage error={error} />
   const attempts = data.filter((a) => a.status === 'submitted')
-  if (attempts.length === 0) return <EmptyState title="No attempts yet">Your quiz history will appear here.</EmptyState>
+  if (attempts.length === 0)
+    return <EmptyState title="No attempts yet">Your quiz history will appear here.</EmptyState>
   return (
     <Card className="pb-0">
       <CardHeader>
@@ -173,10 +202,15 @@ function AttemptHistory({ chapterId }: { chapterId: string }) {
               <td className="px-6 py-3">{formatDate(a.submittedAt ?? a.startedAt)}</td>
               <td className="px-6 py-3">{a.count}</td>
               <td className="px-6 py-3 font-medium">
-                {formatPoints(a.totalScore)} / {a.maxScore} <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
+                {formatPoints(a.totalScore)} / {a.maxScore}{' '}
+                <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
               </td>
               <td className="px-6 py-3 text-right">
-                <Link to="/attempts/$attemptId/results" params={{ attemptId: a.id }} className="font-medium text-primary hover:underline">
+                <Link
+                  to="/attempts/$attemptId/results"
+                  params={{ attemptId: a.id }}
+                  className="font-medium text-primary hover:underline"
+                >
                   Review
                 </Link>
               </td>

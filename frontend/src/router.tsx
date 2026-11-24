@@ -10,7 +10,8 @@ export function createQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 30_000,
-        retry: (count, err) => !(isApiError(err) && err.status >= 400 && err.status < 500) && count < 2,
+        retry: (count, err) =>
+          !(isApiError(err) && err.status >= 400 && err.status < 500) && count < 2,
       },
     },
   })

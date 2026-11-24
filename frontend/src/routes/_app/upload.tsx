@@ -26,12 +26,20 @@ function UploadPage() {
     // Centre the form vertically in the space below the page padding (5rem) on desktop;
     // on mobile it starts at the top so the form isn't pushed below the fold.
     <div className="mx-auto flex max-w-2xl flex-col justify-center md:min-h-[calc(100svh-5rem)]">
-      <PageHeader title="Upload a PDF" subtitle="We'll generate a reusable bank of multiple-choice, true/false and select-all questions." />
+      <PageHeader
+        title="Upload a PDF"
+        subtitle="We'll generate a reusable bank of multiple-choice, true/false and select-all questions."
+      />
       {upload.data === undefined ? (
         <Card>
           <CardContent className="space-y-4">
             {upload.isError && <ErrorMessage error={upload.error} title="Upload failed" />}
-            <UploadForm topics={topics} defaultTopicId={topicId} pending={upload.isPending} onSubmit={(input) => upload.mutate(input)} />
+            <UploadForm
+              topics={topics}
+              defaultTopicId={topicId}
+              pending={upload.isPending}
+              onSubmit={(input) => upload.mutate(input)}
+            />
           </CardContent>
         </Card>
       ) : (

@@ -49,11 +49,17 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
           {revealed.size} {revealed.size === 1 ? 'answer' : 'answers'} shown
         </span>
       </div>
-      <Progress value={((index + 1) / questions.length) * 100} aria-label="Progress" className="h-1.5" />
+      <Progress
+        value={((index + 1) / questions.length) * 100}
+        aria-label="Progress"
+        className="h-1.5"
+      />
 
       <Card>
         <CardContent className="space-y-4">
-          <p className="text-xs font-medium tracking-wide text-primary uppercase">{questionTypeLabel[question.type]}</p>
+          <p className="text-xs font-medium tracking-wide text-primary uppercase">
+            {questionTypeLabel[question.type]}
+          </p>
           <h2 className="text-lg font-medium">{question.prompt}</h2>
 
           <ol className="grid gap-2" aria-label="Options">
@@ -71,7 +77,9 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
                   <span
                     className={cn(
                       'flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium',
-                      isCorrect ? 'border-green-600 bg-green-600 text-white' : 'text-muted-foreground',
+                      isCorrect
+                        ? 'border-green-600 bg-green-600 text-white'
+                        : 'text-muted-foreground',
                     )}
                     aria-hidden
                   >
@@ -88,7 +96,9 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
             ((question.explanation !== undefined && question.explanation !== '') ||
               (question.sourceHint !== undefined && question.sourceHint !== '')) && (
               <div className="space-y-2 rounded-lg bg-muted/60 p-4 text-sm" aria-live="polite">
-                {question.explanation !== undefined && question.explanation !== '' && <p>{question.explanation}</p>}
+                {question.explanation !== undefined && question.explanation !== '' && (
+                  <p>{question.explanation}</p>
+                )}
                 {question.sourceHint !== undefined && question.sourceHint !== '' && (
                   <p className="text-xs text-muted-foreground">Source: {question.sourceHint}</p>
                 )}
@@ -103,7 +113,12 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
       </Card>
 
       <div className="flex justify-between">
-        <Button variant="outline" size="lg" disabled={index === 0} onClick={() => setIndex((i) => i - 1)}>
+        <Button
+          variant="outline"
+          size="lg"
+          disabled={index === 0}
+          onClick={() => setIndex((i) => i - 1)}
+        >
           Previous
         </Button>
         {isLast ? (

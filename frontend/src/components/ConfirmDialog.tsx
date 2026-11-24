@@ -23,7 +23,14 @@ interface Props {
 }
 
 /** Accessible replacement for window.confirm. */
-export function ConfirmDialog({ trigger, title, description, confirmLabel, destructive = false, onConfirm }: Props) {
+export function ConfirmDialog({
+  trigger,
+  title,
+  description,
+  confirmLabel,
+  destructive = false,
+  onConfirm,
+}: Props) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>

@@ -9,7 +9,10 @@ import { jobQuery } from '../api/queries'
 import { ErrorMessage } from './ErrorMessage'
 import { Spinner } from './Spinner'
 
-const stepText = { queued: 'Waiting for a worker…', running: 'Reading your PDF and writing questions…' } as const
+const stepText = {
+  queued: 'Waiting for a worker…',
+  running: 'Reading your PDF and writing questions…',
+} as const
 
 export function JobProgress({ jobId, chapterId }: { jobId: string; chapterId: string }) {
   const { data: job, error } = useQuery(jobQuery(jobId))
@@ -25,7 +28,9 @@ export function JobProgress({ jobId, chapterId }: { jobId: string; chapterId: st
             <Spinner className="size-5 text-primary" />
             <div>
               <p className="font-medium">Generating {job.requestedCount} questions</p>
-              <p className="text-sm text-muted-foreground">{stepText[job.status]} This usually takes 20–60 seconds.</p>
+              <p className="text-sm text-muted-foreground">
+                {stepText[job.status]} This usually takes 20–60 seconds.
+              </p>
             </div>
           </CardContent>
         </Card>

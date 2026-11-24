@@ -17,7 +17,10 @@ function HistoryPage() {
   const { data: attempts } = useSuspenseQuery(allAttemptsQuery)
   return (
     <>
-      <PageHeader title="History" subtitle="Your quiz attempts across all chapters, newest first." />
+      <PageHeader
+        title="History"
+        subtitle="Your quiz attempts across all chapters, newest first."
+      />
       {attempts.length === 0 ? (
         <EmptyState title="No attempts yet">
           Start one from{' '}
@@ -43,9 +46,15 @@ function HistoryPage() {
             <tbody className="divide-y">
               {attempts.map((a) => (
                 <tr key={a.id}>
-                  <td className="px-5 py-3 whitespace-nowrap">{formatDate(a.submittedAt ?? a.startedAt)}</td>
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    {formatDate(a.submittedAt ?? a.startedAt)}
+                  </td>
                   <td className="px-5 py-3">
-                    <Link to="/chapters/$chapterId" params={{ chapterId: a.chapterId }} className="font-medium hover:text-primary hover:underline">
+                    <Link
+                      to="/chapters/$chapterId"
+                      params={{ chapterId: a.chapterId }}
+                      className="font-medium hover:text-primary hover:underline"
+                    >
                       {a.chapterTitle}
                     </Link>
                     <p className="text-xs text-muted-foreground">{a.topicName}</p>
@@ -54,7 +63,8 @@ function HistoryPage() {
                   <td className="px-5 py-3 font-medium whitespace-nowrap">
                     {a.status === 'submitted' ? (
                       <>
-                        {formatPoints(a.totalScore)} / {a.maxScore} <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
+                        {formatPoints(a.totalScore)} / {a.maxScore}{' '}
+                        <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
                       </>
                     ) : (
                       <Badge variant="info">In progress</Badge>
@@ -62,11 +72,19 @@ function HistoryPage() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     {a.status === 'submitted' ? (
-                      <Link to="/attempts/$attemptId/results" params={{ attemptId: a.id }} className="font-medium text-primary hover:underline">
+                      <Link
+                        to="/attempts/$attemptId/results"
+                        params={{ attemptId: a.id }}
+                        className="font-medium text-primary hover:underline"
+                      >
                         Review
                       </Link>
                     ) : (
-                      <Link to="/attempts/$attemptId" params={{ attemptId: a.id }} className="font-medium text-primary hover:underline">
+                      <Link
+                        to="/attempts/$attemptId"
+                        params={{ attemptId: a.id }}
+                        className="font-medium text-primary hover:underline"
+                      >
                         Resume
                       </Link>
                     )}

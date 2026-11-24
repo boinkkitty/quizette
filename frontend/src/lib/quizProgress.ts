@@ -37,7 +37,10 @@ export function loadQuizProgress(attemptId: string, questionIds: readonly string
 
 export function saveQuizProgress(attemptId: string, progress: QuizProgress): void {
   try {
-    window.sessionStorage.setItem(key(attemptId), JSON.stringify({ index: progress.index, responses: Object.fromEntries(progress.responses) }))
+    window.sessionStorage.setItem(
+      key(attemptId),
+      JSON.stringify({ index: progress.index, responses: Object.fromEntries(progress.responses) }),
+    )
   } catch {
     // Not saved; the quiz keeps working.
   }

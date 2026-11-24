@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-function run(t, fileContents, override) {
+function run(t, fileContents, override, args = ['deploy', '--dry-run']) {
   const directory = mkdtempSync(join(tmpdir(), 'quizette-worker-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   mkdirSync(join(directory, 'scripts'))
@@ -15,7 +15,7 @@ function run(t, fileContents, override) {
   const env = { ...process.env, PATH: `${directory}:${process.env.PATH}` }
   delete env.API_ORIGIN
   if (override !== undefined) env.API_ORIGIN = override
-  return spawnSync(process.execPath, [join(directory, 'scripts/wrangler.mjs'), 'deploy', '--dry-run'], {
+  return spawnSync(process.execPath, [join(directory, 'scripts/wrangler.mjs'), ...args], {
     env,
     encoding: 'utf8',
   })
@@ -46,4 +46,10 @@ test('rejects missing or invalid origins before invoking Wrangler', (t) => {
     assert.match(result.stderr, /Set API_ORIGIN/)
     assert.equal(result.stdout, '')
   }
+})
+
+test('uploads a preview version with the same binding', (t) => {
+  const result = run(t, 'API_ORIGIN=https://example.onrender.com\n', undefined, ['versions', 'upload'])
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(JSON.parse(result.stdout), ['exec', 'wrangler', 'versions', 'upload', '--var', 'API_ORIGIN:https://example.onrender.com'])
 })

@@ -9,7 +9,10 @@ export interface Env {
   ASSETS: Fetcher
 }
 
-const HOP_BY_HOP = ['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']
+/** Response header naming a Render URL the browser should request directly to wake the API. */
+export const WAKE_URL_HEADER = 'X-Wake-Url'
+
+const HOP_BY_HOP =['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -32,6 +35,12 @@ export default {
     })
     const res = new Response(upstream.body, upstream)
     res.headers.set('Cache-Control', 'no-store')
+    // A sleeping free-tier Render service answers Worker requests with an instant
+    // 502 (x-render-routing: no-deploy) and does not start; only a request made
+    // directly to Render wakes it. Tell the browser where to send that request.
+    if (upstream.status === 502 && upstream.headers.get('x-render-routing')?.includes('no-deploy')) {
+      res.headers.set(WAKE_URL_HEADER, new URL('/healthz', env.API_ORIGIN).href)
+    }
     return res
   },
 } satisfies ExportedHandler<Env>

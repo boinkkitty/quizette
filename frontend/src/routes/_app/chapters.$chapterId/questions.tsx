@@ -24,7 +24,11 @@ function ViewQuestionsPage() {
   const { data: chapter } = useSuspenseQuery(chapterQuery(chapterId))
   const { data: set } = useSuspenseQuery(questionSetQuery(chapterId))
   const back = (
-    <Link to="/quizzes/$topicId" params={{ topicId: chapter.topicId }} className="hover:text-primary hover:underline">
+    <Link
+      to="/quizzes/$topicId"
+      params={{ topicId: chapter.topicId }}
+      className="hover:text-primary hover:underline"
+    >
       ← {chapter.topicName}
     </Link>
   )

@@ -46,10 +46,10 @@ function TopicsPage() {
                   <FolderIcon className="size-5" aria-hidden />
                 </span>
                 <span>
-                <p className="font-medium group-hover:text-primary">{t.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {t.chapterCount} {t.chapterCount === 1 ? 'chapter' : 'chapters'}
-                </p>
+                  <p className="font-medium group-hover:text-primary">{t.name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {t.chapterCount} {t.chapterCount === 1 ? 'chapter' : 'chapters'}
+                  </p>
                 </span>
               </Link>
             </li>

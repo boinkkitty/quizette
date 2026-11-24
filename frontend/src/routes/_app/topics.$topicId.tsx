@@ -26,7 +26,11 @@ function TopicPage() {
     <>
       <PageHeader
         title={data.topic.name}
-        subtitle={<Link to="/" className="hover:text-primary hover:underline">← All topics</Link>}
+        subtitle={
+          <Link to="/" className="hover:text-primary hover:underline">
+            ← All topics
+          </Link>
+        }
         actions={
           <div className="flex gap-2">
             <ConfirmDialog
@@ -63,11 +67,17 @@ function TopicPage() {
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
           {data.chapters.map((c) => (
             <li key={c.id}>
-              <Link to="/chapters/$chapterId" params={{ chapterId: c.id }} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-secondary/40">
+              <Link
+                to="/chapters/$chapterId"
+                params={{ chapterId: c.id }}
+                className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"
+              >
                 <div>
                   <p className="font-medium">{c.title}</p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {c.status === 'ready' ? `${String(c.questionCount)} questions · ${String(c.attemptCount)} attempts` : ' '}
+                    {c.status === 'ready'
+                      ? `${String(c.questionCount)} questions · ${String(c.attemptCount)} attempts`
+                      : ' '}
                     {c.bestScorePct !== null && ` · best ${formatPct(c.bestScorePct)}`}
                   </p>
                 </div>
