@@ -22,7 +22,7 @@ type Store struct {
 	chapters map[domain.ID]domain.Chapter
 	jobs     map[domain.ID]domain.ProcessingJob
 	sets     map[domain.ID]domain.QuestionSet // by chapter ID
-	attempts map[domain.ID]domain.ChapterAttempt
+	attempts map[domain.ID]domain.Attempt
 	users    map[domain.ID]domain.User
 	oauth    map[string]domain.ID
 	sessions map[string]app.Session
@@ -33,7 +33,7 @@ func NewStore() *Store {
 	return &Store{
 		topics: map[domain.ID]domain.Topic{}, chapters: map[domain.ID]domain.Chapter{},
 		jobs: map[domain.ID]domain.ProcessingJob{}, sets: map[domain.ID]domain.QuestionSet{},
-		attempts: map[domain.ID]domain.ChapterAttempt{}, users: map[domain.ID]domain.User{},
+		attempts: map[domain.ID]domain.Attempt{}, users: map[domain.ID]domain.User{},
 		oauth: map[string]domain.ID{}, sessions: map[string]app.Session{},
 	}
 }
@@ -128,7 +128,22 @@ func (r topicRepo) List(_ context.Context, owner domain.ID) ([]app.TopicSummary,
 				n++
 			}
 		}
-		out = append(out, app.TopicSummary{Topic: t, ChapterCount: n})
+		ts := app.TopicSummary{Topic: t, ChapterCount: n}
+		var last domain.Attempt
+		for _, a := range r.s.attempts {
+			if a.Scope != domain.TopicScope(t.ID) {
+				continue
+			}
+			ts.AttemptCount++
+			ts.BestScorePct = maxPct(ts.BestScorePct, a)
+			if a.SubmittedAt.After(last.SubmittedAt) || last.ID == "" {
+				last = a
+			}
+		}
+		if last.ID != "" {
+			ts.LastScorePct = maxPct(nil, last)
+		}
+		out = append(out, ts)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
@@ -211,6 +226,16 @@ func (r chapterRepo) ListByOwner(_ context.Context, owner domain.ID, filter app.
 	return out, nil
 }
 
+// maxPct returns the greater of best and a's score as a percentage, like the
+// Postgres adapter's total_score / max_score * 100.
+func maxPct(best *float64, a domain.Attempt) *float64 {
+	pct := a.TotalScore / float64(a.MaxScore) * 100
+	if best != nil && *best >= pct {
+		return best
+	}
+	return &pct
+}
+
 // chapterSummaries builds summaries for chapters matching keep. The caller holds s.mu.
 func (s *Store) chapterSummaries(keep func(domain.Chapter) bool) []app.ChapterSummary {
 	var out []app.ChapterSummary
@@ -220,8 +245,9 @@ func (s *Store) chapterSummaries(keep func(domain.Chapter) bool) []app.ChapterSu
 		}
 		cs := app.ChapterSummary{Chapter: c, TopicName: s.topics[c.TopicID].Name, QuestionCount: s.sets[c.ID].Size()}
 		for _, a := range s.attempts {
-			if a.ChapterID == c.ID {
+			if a.Scope == domain.ChapterScope(c.ID) {
 				cs.AttemptCount++
+				cs.BestScorePct = maxPct(cs.BestScorePct, a)
 			}
 		}
 		out = append(out, cs)
@@ -349,29 +375,29 @@ func (r setRepo) GetByChapter(_ context.Context, chapterID domain.ID) (domain.Qu
 
 type attemptRepo struct{ s *Store }
 
-func (r attemptRepo) Create(_ context.Context, a domain.ChapterAttempt) error {
+func (r attemptRepo) Create(_ context.Context, a domain.Attempt) error {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
 	r.s.attempts[a.ID] = a
 	return nil
 }
 
-func (r attemptRepo) Get(_ context.Context, owner, id domain.ID) (domain.ChapterAttempt, error) {
+func (r attemptRepo) Get(_ context.Context, owner, id domain.ID) (domain.Attempt, error) {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
 	a, ok := r.s.attempts[id]
 	if !ok || a.OwnerID != owner {
-		return domain.ChapterAttempt{}, notFound("attempt")
+		return domain.Attempt{}, notFound("attempt")
 	}
 	return a, nil
 }
 
-func (r attemptRepo) ListByChapter(_ context.Context, owner, chapterID domain.ID) ([]domain.ChapterAttempt, error) {
+func (r attemptRepo) ListByChapter(_ context.Context, owner, chapterID domain.ID) ([]domain.Attempt, error) {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
-	var out []domain.ChapterAttempt
+	var out []domain.Attempt
 	for _, a := range r.s.attempts {
-		if a.OwnerID == owner && a.ChapterID == chapterID {
+		if a.OwnerID == owner && a.Scope == domain.ChapterScope(chapterID) {
 			out = append(out, a)
 		}
 	}
@@ -387,9 +413,14 @@ func (r attemptRepo) ListByOwner(_ context.Context, owner domain.ID, limit int) 
 		if a.OwnerID != owner {
 			continue
 		}
-		ch := r.s.chapters[a.ChapterID]
 		a.Answers = nil // the summary does not load answers, like the Postgres adapter
-		out = append(out, app.AttemptSummary{ChapterAttempt: a, ChapterTitle: ch.Title, TopicID: ch.TopicID, TopicName: r.s.topics[ch.TopicID].Name})
+		sum := app.AttemptSummary{Attempt: a, TopicID: a.Scope.ID}
+		if a.Scope.Kind == domain.ScopeChapter {
+			ch := r.s.chapters[a.Scope.ID]
+			sum.ChapterTitle, sum.TopicID = ch.Title, ch.TopicID
+		}
+		sum.TopicName = r.s.topics[sum.TopicID].Name
+		out = append(out, sum)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
 	if len(out) > limit {

@@ -178,8 +178,8 @@ func (q *Queries) GetTopicByName(ctx context.Context, arg GetTopicByNameParams) 
 const listChaptersByOwner = `-- name: ListChaptersByOwner :many
 SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
-    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
-    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
+    coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
 WHERE c.owner_id = $1
@@ -244,12 +244,12 @@ func (q *Queries) ListChaptersByOwner(ctx context.Context, arg ListChaptersByOwn
 const listChaptersByTopic = `-- name: ListChaptersByTopic :many
 SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
-    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
-    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
+    coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
 WHERE c.owner_id = $1 AND c.topic_id = $2
-ORDER BY c.created_at
+ORDER BY c.created_at, c.id
 `
 
 type ListChaptersByTopicParams struct {
@@ -272,7 +272,8 @@ type ListChaptersByTopicRow struct {
 
 // Chapters of one topic with list-view aggregates. The aggregates are correlated
 // subqueries rather than joins so one chapter row can't be multiplied by its questions
-// and attempts. best_score_pct is -1 when there are no submitted attempts (mapped to nil).
+// and attempts. Attempt figures count chapter-scoped attempts only (a topic attempt has
+// no chapter_id). best_score_pct is -1 when there are none (mapped to nil).
 func (q *Queries) ListChaptersByTopic(ctx context.Context, arg ListChaptersByTopicParams) ([]ListChaptersByTopicRow, error) {
 	rows, err := q.db.Query(ctx, listChaptersByTopic, arg.OwnerID, arg.TopicID)
 	if err != nil {
@@ -305,7 +306,10 @@ func (q *Queries) ListChaptersByTopic(ctx context.Context, arg ListChaptersByTop
 }
 
 const listTopics = `-- name: ListTopics :many
-SELECT t.id, t.owner_id, t.name, t.created_at, (SELECT count(*) FROM chapters c WHERE c.topic_id = t.id)::int AS chapter_count
+SELECT t.id, t.owner_id, t.name, t.created_at, (SELECT count(*) FROM chapters c WHERE c.topic_id = t.id)::int AS chapter_count,
+    coalesce((SELECT count(*) FROM attempts a WHERE a.topic_id = t.id), 0)::int AS attempt_count,
+    coalesce((SELECT a.total_score / a.max_score * 100 FROM attempts a WHERE a.topic_id = t.id ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1), -1)::float8 AS last_score_pct,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.topic_id = t.id), -1)::float8 AS best_score_pct
 FROM topics t
 WHERE t.owner_id = $1
 ORDER BY t.name
@@ -317,8 +321,13 @@ type ListTopicsRow struct {
 	Name         string
 	CreatedAt    time.Time
 	ChapterCount int32
+	AttemptCount int32
+	LastScorePct float64
+	BestScorePct float64
 }
 
+// Performance counts topic-scoped attempts only. The score columns are -1 when there
+// are none (mapped to nil).
 func (q *Queries) ListTopics(ctx context.Context, ownerID string) ([]ListTopicsRow, error) {
 	rows, err := q.db.Query(ctx, listTopics, ownerID)
 	if err != nil {
@@ -334,6 +343,9 @@ func (q *Queries) ListTopics(ctx context.Context, ownerID string) ([]ListTopicsR
 			&i.Name,
 			&i.CreatedAt,
 			&i.ChapterCount,
+			&i.AttemptCount,
+			&i.LastScorePct,
+			&i.BestScorePct,
 		); err != nil {
 			return nil, err
 		}

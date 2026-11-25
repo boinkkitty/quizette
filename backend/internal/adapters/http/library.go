@@ -27,7 +27,10 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]topicDTO, len(topics))
 	for i, t := range topics {
-		out[i] = topicDTO{ID: t.ID.String(), Name: t.Name, ChapterCount: t.ChapterCount, CreatedAt: t.CreatedAt}
+		out[i] = topicDTO{
+			ID: t.ID.String(), Name: t.Name, ChapterCount: t.ChapterCount, CreatedAt: t.CreatedAt,
+			AttemptCount: t.AttemptCount, LastScorePct: t.LastScorePct, BestScorePct: t.BestScorePct,
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

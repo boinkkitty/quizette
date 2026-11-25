@@ -54,13 +54,18 @@ type JobQueue interface {
 
 // ---- Repositories ----
 
-// TopicSummary is a topic with its chapter count.
+// TopicSummary is a topic with its chapter count and the performance of its
+// topic-scoped attempts. LastScorePct and BestScorePct are nil without attempts.
 type TopicSummary struct {
 	domain.Topic
 	ChapterCount int
+	AttemptCount int
+	LastScorePct *float64
+	BestScorePct *float64
 }
 
-// ChapterSummary is a chapter with list-view aggregates.
+// ChapterSummary is a chapter with list-view aggregates. AttemptCount and
+// BestScorePct count chapter-scoped attempts only (ADR 0010).
 type ChapterSummary struct {
 	domain.Chapter
 	TopicName     string
@@ -118,22 +123,23 @@ type QuestionSetRepository interface {
 	GetByChapter(ctx context.Context, chapterID domain.ID) (domain.QuestionSet, error)
 }
 
-// AttemptSummary is a ChapterAttempt with the names needed by an owner-wide history list.
-// Answers are not loaded.
+// AttemptSummary is an Attempt with the names needed by an owner-wide history list.
+// ChapterTitle is empty for a topic-scoped attempt. Answers are not loaded.
 type AttemptSummary struct {
-	domain.ChapterAttempt
+	domain.Attempt
 	ChapterTitle string
 	TopicID      domain.ID
 	TopicName    string
 }
 
-// ChapterAttemptRepository persists ChapterAttempts.
-type ChapterAttemptRepository interface {
+// AttemptRepository persists Attempts.
+type AttemptRepository interface {
 	// Create saves a submitted attempt and its answers together.
-	Create(ctx context.Context, a domain.ChapterAttempt) error
-	Get(ctx context.Context, ownerID, id domain.ID) (domain.ChapterAttempt, error)
-	ListByChapter(ctx context.Context, ownerID, chapterID domain.ID) ([]domain.ChapterAttempt, error)
-	// ListByOwner returns at most limit of the user's attempts across all chapters, newest first.
+	Create(ctx context.Context, a domain.Attempt) error
+	Get(ctx context.Context, ownerID, id domain.ID) (domain.Attempt, error)
+	// ListByChapter returns the chapter's chapter-scoped attempts, newest first.
+	ListByChapter(ctx context.Context, ownerID, chapterID domain.ID) ([]domain.Attempt, error)
+	// ListByOwner returns at most limit of the user's attempts across all scopes, newest first.
 	ListByOwner(ctx context.Context, ownerID domain.ID, limit int) ([]AttemptSummary, error)
 }
 
@@ -168,7 +174,7 @@ type Repos struct {
 	Chapters     ChapterRepository
 	Jobs         ProcessingJobRepository
 	QuestionSets QuestionSetRepository
-	Attempts     ChapterAttemptRepository
+	Attempts     AttemptRepository
 	Users        UserRepository
 	Sessions     SessionRepository
 }

@@ -8,6 +8,29 @@ import (
 	"time"
 )
 
+type Attempt struct {
+	ID             string
+	OwnerID        string
+	ChapterID      *string
+	RequestedCount int32
+	QuestionIds    []string
+	TotalScore     float64
+	MaxScore       int32
+	StartedAt      time.Time
+	SubmittedAt    time.Time
+	Scope          string
+	TopicID        *string
+}
+
+type AttemptAnswer struct {
+	AttemptID  string
+	QuestionID string
+	Position   int32
+	Selected   []int32
+	Points     float64
+	Correct    bool
+}
+
 type Chapter struct {
 	ID        string
 	TopicID   string
@@ -15,27 +38,6 @@ type Chapter struct {
 	Title     string
 	Status    string
 	CreatedAt time.Time
-}
-
-type ChapterAttempt struct {
-	ID             string
-	OwnerID        string
-	ChapterID      string
-	RequestedCount int32
-	QuestionIds    []string
-	TotalScore     float64
-	MaxScore       int32
-	StartedAt      time.Time
-	SubmittedAt    time.Time
-}
-
-type ChapterAttemptAnswer struct {
-	AttemptID  string
-	QuestionID string
-	Position   int32
-	Selected   []int32
-	Points     float64
-	Correct    bool
 }
 
 type OauthAccount struct {

@@ -19,10 +19,15 @@ func toUserDTO(u domain.User) userDTO {
 	return userDTO{ID: u.ID.String(), Email: u.Email, Name: u.Name, AvatarURL: u.AvatarURL}
 }
 
+// topicDTO's performance fields count topic-scoped attempts only. They are only
+// filled in by the topic list.
 type topicDTO struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
 	ChapterCount int       `json:"chapterCount"`
+	AttemptCount int       `json:"attemptCount"`
+	LastScorePct *float64  `json:"lastScorePct"`
+	BestScorePct *float64  `json:"bestScorePct"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
@@ -105,12 +110,41 @@ type questionDTO struct {
 	Correct     []int    `json:"correct,omitempty"`
 	Explanation string   `json:"explanation,omitempty"`
 	SourceHint  string   `json:"sourceHint,omitempty"`
+	// ChapterID and ChapterTitle name the question's chapter in a quiz or attempt.
+	ChapterID    string `json:"chapterId,omitempty"`
+	ChapterTitle string `json:"chapterTitle,omitempty"`
 }
 
 func toQuestionDTO(q domain.Question, reveal bool) questionDTO {
 	d := questionDTO{ID: q.ID.String(), Position: q.Position, Type: string(q.Type), Prompt: q.Prompt, Options: q.Options}
 	if reveal {
 		d.Correct, d.Explanation, d.SourceHint = q.Correct, q.Explanation, q.SourceHint
+	}
+	return d
+}
+
+func toScopedQuestionDTO(q app.ScopedQuestion, reveal bool) questionDTO {
+	d := toQuestionDTO(q.Question, reveal)
+	d.ChapterID, d.ChapterTitle = q.ChapterID.String(), q.ChapterTitle
+	return d
+}
+
+// scopeDTO names an attempt scope. A chapter scope sets chapterId and chapterTitle;
+// a topic scope sets topicId and topicName.
+type scopeDTO struct {
+	Scope        string `json:"scope"`
+	ChapterID    string `json:"chapterId,omitempty"`
+	ChapterTitle string `json:"chapterTitle,omitempty"`
+	TopicID      string `json:"topicId,omitempty"`
+	TopicName    string `json:"topicName,omitempty"`
+}
+
+func toScopeDTO(scope domain.AttemptScope, name string) scopeDTO {
+	d := scopeDTO{Scope: string(scope.Kind)}
+	if scope.Kind == domain.ScopeTopic {
+		d.TopicID, d.TopicName = scope.ID.String(), name
+	} else {
+		d.ChapterID, d.ChapterTitle = scope.ID.String(), name
 	}
 	return d
 }
@@ -122,9 +156,13 @@ type answerDTO struct {
 	Correct    bool    `json:"correct"`
 }
 
+// attemptSummaryDTO sets chapterId for a chapter-scoped attempt and topicId for a
+// topic-scoped one.
 type attemptSummaryDTO struct {
 	ID          string    `json:"id"`
-	ChapterID   string    `json:"chapterId"`
+	Scope       string    `json:"scope"`
+	ChapterID   string    `json:"chapterId,omitempty"`
+	TopicID     string    `json:"topicId,omitempty"`
 	Count       int       `json:"count"`
 	TotalScore  float64   `json:"totalScore"`
 	MaxScore    int       `json:"maxScore"`
@@ -133,37 +171,42 @@ type attemptSummaryDTO struct {
 	SubmittedAt time.Time `json:"submittedAt"`
 }
 
-func toAttemptSummary(a domain.ChapterAttempt) attemptSummaryDTO {
+func toAttemptSummary(a domain.Attempt) attemptSummaryDTO {
 	pct := 0.0
 	if a.MaxScore > 0 {
 		pct = math.Round(a.TotalScore/float64(a.MaxScore)*10000) / 100
 	}
+	sc := toScopeDTO(a.Scope, "")
 	return attemptSummaryDTO{
-		ID: a.ID.String(), ChapterID: a.ChapterID.String(), Count: a.RequestedCount,
+		ID: a.ID.String(), Scope: sc.Scope, ChapterID: sc.ChapterID, TopicID: sc.TopicID, Count: a.RequestedCount,
 		TotalScore: a.TotalScore, MaxScore: a.MaxScore, ScorePct: pct, StartedAt: a.StartedAt, SubmittedAt: a.SubmittedAt,
 	}
 }
 
-// attemptHistoryItemDTO is one row of the owner-wide attempt history.
+// attemptHistoryItemDTO is one row of the owner-wide attempt history. topicId is
+// set for both scopes: a chapter-scoped attempt's is its chapter's topic. Its
+// chapterTitle is empty for a topic-scoped attempt.
 type attemptHistoryItemDTO struct {
 	attemptSummaryDTO
-	ChapterTitle string `json:"chapterTitle"`
+	ChapterTitle string `json:"chapterTitle,omitempty"`
 	TopicID      string `json:"topicId"`
 	TopicName    string `json:"topicName"`
 }
 
 type attemptDTO struct {
 	attemptSummaryDTO
-	ChapterTitle string        `json:"chapterTitle"`
+	ChapterTitle string        `json:"chapterTitle,omitempty"`
+	TopicName    string        `json:"topicName,omitempty"`
 	Questions    []questionDTO `json:"questions"`
 	Answers      []answerDTO   `json:"answers"`
 }
 
 // toAttemptDTO reveals correct answers: an attempt only exists once submitted.
 func toAttemptDTO(v app.AttemptView) attemptDTO {
-	out := attemptDTO{attemptSummaryDTO: toAttemptSummary(v.Attempt), ChapterTitle: v.ChapterTitle, Questions: make([]questionDTO, len(v.Questions)), Answers: []answerDTO{}}
+	sc := toScopeDTO(v.Attempt.Scope, v.ScopeName)
+	out := attemptDTO{attemptSummaryDTO: toAttemptSummary(v.Attempt), ChapterTitle: sc.ChapterTitle, TopicName: sc.TopicName, Questions: make([]questionDTO, len(v.Questions)), Answers: []answerDTO{}}
 	for i, q := range v.Questions {
-		out.Questions[i] = toQuestionDTO(q, true)
+		out.Questions[i] = toScopedQuestionDTO(q, true)
 	}
 	for _, a := range v.Attempt.Answers {
 		out.Answers = append(out.Answers, answerDTO{QuestionID: a.QuestionID.String(), Selected: a.Selected, Points: a.Score.Points, Correct: a.Score.Correct})

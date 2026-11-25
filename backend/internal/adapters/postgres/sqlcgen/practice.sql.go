@@ -12,14 +12,16 @@ import (
 
 const createAttempt = `-- name: CreateAttempt :exec
 
-INSERT INTO chapter_attempts (id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO attempts (id, owner_id, scope, topic_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type CreateAttemptParams struct {
 	ID             string
 	OwnerID        string
-	ChapterID      string
+	Scope          string
+	TopicID        *string
+	ChapterID      *string
 	RequestedCount int32
 	QuestionIds    []string
 	TotalScore     float64
@@ -28,11 +30,14 @@ type CreateAttemptParams struct {
 	SubmittedAt    time.Time
 }
 
-// Chapter attempts (quizzes) and their graded answers.
+// Attempts (quizzes) and their graded answers. An attempt's scope is a topic or a
+// chapter; exactly one of topic_id and chapter_id is set (ADR 0010).
 func (q *Queries) CreateAttempt(ctx context.Context, arg CreateAttemptParams) error {
 	_, err := q.db.Exec(ctx, createAttempt,
 		arg.ID,
 		arg.OwnerID,
+		arg.Scope,
+		arg.TopicID,
 		arg.ChapterID,
 		arg.RequestedCount,
 		arg.QuestionIds,
@@ -45,7 +50,7 @@ func (q *Queries) CreateAttempt(ctx context.Context, arg CreateAttemptParams) er
 }
 
 const getAttempt = `-- name: GetAttempt :one
-SELECT id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at FROM chapter_attempts WHERE owner_id = $1 AND id = $2
+SELECT id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at, scope, topic_id FROM attempts WHERE owner_id = $1 AND id = $2
 `
 
 type GetAttemptParams struct {
@@ -53,9 +58,9 @@ type GetAttemptParams struct {
 	ID      string
 }
 
-func (q *Queries) GetAttempt(ctx context.Context, arg GetAttemptParams) (ChapterAttempt, error) {
+func (q *Queries) GetAttempt(ctx context.Context, arg GetAttemptParams) (Attempt, error) {
 	row := q.db.QueryRow(ctx, getAttempt, arg.OwnerID, arg.ID)
-	var i ChapterAttempt
+	var i Attempt
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -66,12 +71,14 @@ func (q *Queries) GetAttempt(ctx context.Context, arg GetAttemptParams) (Chapter
 		&i.MaxScore,
 		&i.StartedAt,
 		&i.SubmittedAt,
+		&i.Scope,
+		&i.TopicID,
 	)
 	return i, err
 }
 
 const insertAnswer = `-- name: InsertAnswer :exec
-INSERT INTO chapter_attempt_answers (attempt_id, question_id, position, selected, points, correct)
+INSERT INTO attempt_answers (attempt_id, question_id, position, selected, points, correct)
 VALUES ($1, $2, $3, $4, $5, $6)
 `
 
@@ -97,18 +104,18 @@ func (q *Queries) InsertAnswer(ctx context.Context, arg InsertAnswerParams) erro
 }
 
 const listAnswers = `-- name: ListAnswers :many
-SELECT attempt_id, question_id, position, selected, points, correct FROM chapter_attempt_answers WHERE attempt_id = $1 ORDER BY position
+SELECT attempt_id, question_id, position, selected, points, correct FROM attempt_answers WHERE attempt_id = $1 ORDER BY position
 `
 
-func (q *Queries) ListAnswers(ctx context.Context, attemptID string) ([]ChapterAttemptAnswer, error) {
+func (q *Queries) ListAnswers(ctx context.Context, attemptID string) ([]AttemptAnswer, error) {
 	rows, err := q.db.Query(ctx, listAnswers, attemptID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ChapterAttemptAnswer{}
+	items := []AttemptAnswer{}
 	for rows.Next() {
-		var i ChapterAttemptAnswer
+		var i AttemptAnswer
 		if err := rows.Scan(
 			&i.AttemptID,
 			&i.QuestionID,
@@ -128,23 +135,24 @@ func (q *Queries) ListAnswers(ctx context.Context, attemptID string) ([]ChapterA
 }
 
 const listAttemptsByChapter = `-- name: ListAttemptsByChapter :many
-SELECT id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at FROM chapter_attempts WHERE owner_id = $1 AND chapter_id = $2 ORDER BY started_at DESC
+SELECT id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at, scope, topic_id FROM attempts WHERE owner_id = $1 AND chapter_id = $2 ORDER BY started_at DESC
 `
 
 type ListAttemptsByChapterParams struct {
 	OwnerID   string
-	ChapterID string
+	ChapterID *string
 }
 
-func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByChapterParams) ([]ChapterAttempt, error) {
+// Chapter-scoped attempts only: a topic attempt has no chapter_id.
+func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByChapterParams) ([]Attempt, error) {
 	rows, err := q.db.Query(ctx, listAttemptsByChapter, arg.OwnerID, arg.ChapterID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ChapterAttempt{}
+	items := []Attempt{}
 	for rows.Next() {
-		var i ChapterAttempt
+		var i Attempt
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -155,6 +163,8 @@ func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByC
 			&i.MaxScore,
 			&i.StartedAt,
 			&i.SubmittedAt,
+			&i.Scope,
+			&i.TopicID,
 		); err != nil {
 			return nil, err
 		}
@@ -167,10 +177,10 @@ func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByC
 }
 
 const listAttemptsByOwner = `-- name: ListAttemptsByOwner :many
-SELECT a.id, a.owner_id, a.chapter_id, a.requested_count, a.question_ids, a.total_score, a.max_score, a.started_at, a.submitted_at, c.title AS chapter_title, c.topic_id, t.name AS topic_name
-FROM chapter_attempts a
-JOIN chapters c ON c.id = a.chapter_id
-JOIN topics t ON t.id = c.topic_id
+SELECT a.id, a.owner_id, a.chapter_id, a.requested_count, a.question_ids, a.total_score, a.max_score, a.started_at, a.submitted_at, a.scope, a.topic_id, coalesce(c.title, '')::text AS chapter_title, t.id AS scope_topic_id, t.name AS topic_name
+FROM attempts a
+LEFT JOIN chapters c ON c.id = a.chapter_id
+JOIN topics t ON t.id = coalesce(a.topic_id, c.topic_id)
 WHERE a.owner_id = $1
 ORDER BY a.started_at DESC
 LIMIT $2
@@ -184,19 +194,22 @@ type ListAttemptsByOwnerParams struct {
 type ListAttemptsByOwnerRow struct {
 	ID             string
 	OwnerID        string
-	ChapterID      string
+	ChapterID      *string
 	RequestedCount int32
 	QuestionIds    []string
 	TotalScore     float64
 	MaxScore       int32
 	StartedAt      time.Time
 	SubmittedAt    time.Time
+	Scope          string
+	TopicID        *string
 	ChapterTitle   string
-	TopicID        string
+	ScopeTopicID   string
 	TopicName      string
 }
 
-// The History page: newest attempts across all chapters, with names for display.
+// The History page: newest attempts across all scopes, with names for display. A
+// topic attempt has no chapter, so chapter_title is empty and the topic is its own.
 func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwnerParams) ([]ListAttemptsByOwnerRow, error) {
 	rows, err := q.db.Query(ctx, listAttemptsByOwner, arg.OwnerID, arg.Limit)
 	if err != nil {
@@ -216,8 +229,10 @@ func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwn
 			&i.MaxScore,
 			&i.StartedAt,
 			&i.SubmittedAt,
-			&i.ChapterTitle,
+			&i.Scope,
 			&i.TopicID,
+			&i.ChapterTitle,
+			&i.ScopeTopicID,
 			&i.TopicName,
 		); err != nil {
 			return nil, err
