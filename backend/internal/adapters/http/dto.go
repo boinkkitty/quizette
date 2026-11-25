@@ -140,8 +140,8 @@ type scopeDTO struct {
 }
 
 func toScopeDTO(scope domain.AttemptScope, name string) scopeDTO {
-	d := scopeDTO{Scope: string(scope.Kind)}
-	if scope.Kind == domain.ScopeTopic {
+	d := scopeDTO{Scope: string(scope.Type)}
+	if scope.Type == domain.ScopeTopic {
 		d.TopicID, d.TopicName = scope.ID.String(), name
 	} else {
 		d.ChapterID, d.ChapterTitle = scope.ID.String(), name

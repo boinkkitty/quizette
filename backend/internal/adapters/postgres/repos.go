@@ -293,7 +293,7 @@ func toAttempt(r sqlcgen.Attempt) domain.Attempt {
 	for i, id := range r.QuestionIds {
 		ids[i] = domain.ID(id)
 	}
-	scope := domain.AttemptScope{Kind: domain.ScopeKind(r.Scope)}
+	scope := domain.AttemptScope{Type: domain.ScopeType(r.Scope)}
 	if r.TopicID != nil {
 		scope.ID = domain.ID(*r.TopicID)
 	} else if r.ChapterID != nil {
@@ -314,14 +314,14 @@ func (r attemptRepo) Create(ctx context.Context, a domain.Attempt) error {
 	// The database checks that exactly one of topic_id and chapter_id is set.
 	scopeID := string(a.Scope.ID)
 	var topicID, chapterID *string
-	if a.Scope.Kind == domain.ScopeTopic {
+	if a.Scope.Type == domain.ScopeTopic {
 		topicID = &scopeID
 	} else {
 		chapterID = &scopeID
 	}
 	return inTx(ctx, r.db, func(q *sqlcgen.Queries) error {
 		err := q.CreateAttempt(ctx, sqlcgen.CreateAttemptParams{
-			ID: string(a.ID), OwnerID: string(a.OwnerID), Scope: string(a.Scope.Kind), TopicID: topicID, ChapterID: chapterID,
+			ID: string(a.ID), OwnerID: string(a.OwnerID), Scope: string(a.Scope.Type), TopicID: topicID, ChapterID: chapterID,
 			RequestedCount: i32(a.RequestedCount), QuestionIds: ids, TotalScore: a.TotalScore, MaxScore: i32(a.MaxScore),
 			StartedAt: a.StartedAt, SubmittedAt: a.SubmittedAt,
 		})

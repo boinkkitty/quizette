@@ -415,7 +415,7 @@ func (r attemptRepo) ListByOwner(_ context.Context, owner domain.ID, limit int) 
 		}
 		a.Answers = nil // the summary does not load answers, like the Postgres adapter
 		sum := app.AttemptSummary{Attempt: a, TopicID: a.Scope.ID}
-		if a.Scope.Kind == domain.ScopeChapter {
+		if a.Scope.Type == domain.ScopeChapter {
 			ch := r.s.chapters[a.Scope.ID]
 			sum.ChapterTitle, sum.TopicID = ch.Title, ch.TopicID
 		}

@@ -14,27 +14,27 @@ type Answer struct {
 	Score      Score
 }
 
-// ScopeKind says what an attempt draws from.
-type ScopeKind string
+// ScopeType says what an attempt draws from.
+type ScopeType string
 
-// Scope kinds.
+// Scope types.
 const (
-	ScopeChapter ScopeKind = "chapter"
-	ScopeTopic   ScopeKind = "topic"
+	ScopeChapter ScopeType = "chapter"
+	ScopeTopic   ScopeType = "topic"
 )
 
 // AttemptScope is what an attempt draws from: one chapter, or a whole topic (its
-// ready chapters). ID is the chapter's or the topic's ID, according to Kind.
+// ready chapters). ID is the chapter's or the topic's ID, according to Type.
 type AttemptScope struct {
-	Kind ScopeKind
+	Type ScopeType
 	ID   ID
 }
 
 // ChapterScope returns the scope of a chapter quiz.
-func ChapterScope(chapterID ID) AttemptScope { return AttemptScope{Kind: ScopeChapter, ID: chapterID} }
+func ChapterScope(chapterID ID) AttemptScope { return AttemptScope{Type: ScopeChapter, ID: chapterID} }
 
 // TopicScope returns the scope of a topic quiz.
-func TopicScope(topicID ID) AttemptScope { return AttemptScope{Kind: ScopeTopic, ID: topicID} }
+func TopicScope(topicID ID) AttemptScope { return AttemptScope{Type: ScopeTopic, ID: topicID} }
 
 // Pool is the question sets an attempt scope draws from: one set for a chapter
 // scope, one per ready chapter for a topic scope. Its order is the order the draw
@@ -131,7 +131,7 @@ func NewAttempt(id, ownerID ID, scope AttemptScope, pool Pool, questionIDs []ID,
 	for pos, qid := range questionIDs {
 		q, ok := pool.Question(qid)
 		if !ok {
-			problems = append(problems, fmt.Sprintf("question %s is not in this %s", qid, scope.Kind))
+			problems = append(problems, fmt.Sprintf("question %s is not in this %s", qid, scope.Type))
 			continue
 		}
 		selected := slices.Clone(responses[qid])

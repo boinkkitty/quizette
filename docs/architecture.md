@@ -95,7 +95,7 @@ Topic 1 ──< Chapter 1 ── 1 QuestionSet 1 ──< Question
 Example: correct = {A,C}. Pick A,C → 1. Pick A → 0.5. Pick A,B → 0. Pick all 4 → 0.
 
 ### Attempt (aggregate root)
-- **What:** one finished practice run over an attempt scope: one chapter, or a whole topic (its ready chapters) (ADR 0010). `ID, OwnerID, Scope{Kind, ID}, RequestedCount, QuestionIDs (ordered), Answers[], TotalScore, MaxScore, StartedAt, SubmittedAt`. Created graded when the quiz is submitted; an unfinished quiz lives only in its browser tab (ADR 0011).
+- **What:** one finished practice run over an attempt scope: one chapter, or a whole topic (its ready chapters) (ADR 0010). `ID, OwnerID, Scope{Type, ID}, RequestedCount, QuestionIDs (ordered), Answers[], TotalScore, MaxScore, StartedAt, SubmittedAt`. Created graded when the quiz is submitted; an unfinished quiz lives only in its browser tab (ADR 0011).
 - **Why its own aggregate:** many attempts per set, written by the user while the set is read-only. Putting attempts inside QuestionSet would make the immutable bank a write hotspot and grow unboundedly.
 - **Invariants:** count is a multiple of 5, at least 5 and ≤ min(pool size, 50), where the pool (`domain.Pool`) is the question sets of the scope's ready chapters; drawn questions are distinct members of the pool; answers only for drawn questions; score derived, never client-supplied.
 - **Snapshot of `QuestionIDs`:** history shows exactly what was asked, in what order, even though selection is randomised, and chapters added to a topic later don't change its past attempts. An answer's chapter is derived through question → question set → chapter.

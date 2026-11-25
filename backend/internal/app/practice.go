@@ -54,7 +54,7 @@ func (s *PracticeService) loadPool(ctx context.Context, ownerID domain.ID, scope
 		name     string
 		chapters []domain.Chapter
 	)
-	switch scope.Kind {
+	switch scope.Type {
 	case domain.ScopeChapter:
 		ch, err := s.Repos.Chapters.Get(ctx, ownerID, scope.ID)
 		if err != nil {
@@ -141,7 +141,7 @@ func (s *PracticeService) SubmitQuiz(ctx context.Context, ownerID domain.ID, sco
 		return AttemptView{}, err
 	}
 	logctx.From(ctx, s.Logger).InfoContext(ctx, "attempt.submitted", slog.String("attempt_id", a.ID.String()),
-		slog.String("scope", string(scope.Kind)), slog.String("scope_id", scope.ID.String()),
+		slog.String("scope", string(scope.Type)), slog.String("scope_id", scope.ID.String()),
 		slog.Float64("score", a.TotalScore), slog.Int("max_score", a.MaxScore))
 	return AttemptView{Attempt: a, ScopeName: p.name, Questions: p.questions(a.QuestionIDs)}, nil
 }
