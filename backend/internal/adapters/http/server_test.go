@@ -29,6 +29,8 @@ type harness struct {
 	srv   *httptest.Server
 	logs  *bytes.Buffer
 	clock *apptest.Clock
+	// queue runs generation jobs at once; set its Err to fail the next uploads.
+	queue *apptest.SyncQueue
 }
 
 // newHarness serves the real router over the in-memory store. Each wrap can replace
@@ -59,7 +61,7 @@ func newHarness(t *testing.T, wrap ...func(*app.Repos)) *harness {
 	}
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
-	return &harness{srv: srv, logs: logs, clock: clock}
+	return &harness{srv: srv, logs: logs, clock: clock, queue: queue}
 }
 
 // client mimics the SPA: the cookie jar holds the session cookie and every

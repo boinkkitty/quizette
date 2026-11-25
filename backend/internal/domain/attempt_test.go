@@ -8,11 +8,17 @@ import (
 
 func readySet(t *testing.T, n int) QuestionSet {
 	t.Helper()
+	return chapterSet(t, "c", n, seqID())
+}
+
+// chapterSet builds chapterID's question set of n questions, with IDs from newID.
+func chapterSet(t *testing.T, chapterID ID, n int, newID func() ID) QuestionSet {
+	t.Helper()
 	spec, err := NewQuestionSpec(n, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	set, _, err := NewQuestionSet("s", "c", spec, drafts(n), seqID(), time.Now())
+	set, _, err := NewQuestionSet("s-"+chapterID, chapterID, spec, drafts(n), newID, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +33,7 @@ func ids(set QuestionSet) []ID {
 	return out
 }
 
-func TestNewChapterAttemptGrades(t *testing.T) {
+func TestNewAttemptGradesChapterQuiz(t *testing.T) {
 	t.Parallel()
 	set := readySet(t, 5) // q1 mcq(b), q2 tf(true), q3 mrq(a,c), q4 mcq, q5 tf
 	now := time.Now()
@@ -39,11 +45,11 @@ func TestNewChapterAttemptGrades(t *testing.T) {
 		"q4": {1, 1}, // correct (dup)
 		// q5 unanswered
 	}
-	a, err := NewChapterAttempt("a", "u", set, ids(set), responses, now)
+	a, err := NewAttempt("a", "u", ChapterScope("c"), Pool{set}, ids(set), responses, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.ChapterID != "c" || !a.SubmittedAt.Equal(now) {
+	if a.Scope != ChapterScope("c") || !a.SubmittedAt.Equal(now) {
 		t.Fatalf("attempt = %+v", a)
 	}
 	if a.TotalScore != 2.5 || a.MaxScore != 5 {
@@ -54,7 +60,7 @@ func TestNewChapterAttemptGrades(t *testing.T) {
 	}
 }
 
-func TestNewChapterAttemptRejectsBadDraws(t *testing.T) {
+func TestNewAttemptRejectsBadDraws(t *testing.T) {
 	t.Parallel()
 	set := readySet(t, 10)
 	five := ids(set)[:5]
@@ -70,10 +76,41 @@ func TestNewChapterAttemptRejectsBadDraws(t *testing.T) {
 	}
 	for name, tt := range tests {
 		var verr *ValidationError
-		if _, err := NewChapterAttempt("a", "u", set, tt.questionIDs, tt.responses, time.Now()); !errors.As(err, &verr) {
+		if _, err := NewAttempt("a", "u", ChapterScope("c"), Pool{set}, tt.questionIDs, tt.responses, time.Now()); !errors.As(err, &verr) {
 			t.Errorf("%s: got %v, want a ValidationError", name, err)
 		}
 	}
+}
+
+func TestNewAttemptOverTopicPool(t *testing.T) {
+	t.Parallel()
+	newID := seqID()
+	cells, genes := chapterSet(t, "cells", 5, newID), chapterSet(t, "genes", 5, newID) // q1..q5, q6..q10
+	pool := Pool{cells, genes}
+	scope := TopicScope("bio")
+
+	drawn := []ID{"q1", "q6", "q2", "q7", "q3", "q8", "q4", "q9", "q5", "q10"}
+	responses := map[ID][]int{"q1": {1}, "q6": {1}} // both MCQs, both correct
+	a, err := NewAttempt("a", "u", scope, pool, drawn, responses, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Scope != scope || a.TotalScore != 2 || a.MaxScore != 10 || len(a.Answers) != 10 || a.Answers[1].QuestionID != "q6" {
+		t.Fatalf("attempt = %+v", a)
+	}
+	if ch, ok := pool.ChapterOf("q7"); !ok || ch != "genes" {
+		t.Errorf("ChapterOf(q7) = %q, %v; want genes", ch, ok)
+	}
+
+	other := chapterSet(t, "elsewhere", 5, newID) // q11..q15
+	if _, err := NewAttempt("a", "u", scope, pool, append(drawn[:9:9], other.Questions[0].ID), nil, time.Now()); !isValidation(err) {
+		t.Errorf("question outside the topic: got %v, want a ValidationError", err)
+	}
+}
+
+func isValidation(err error) bool {
+	var verr *ValidationError
+	return errors.As(err, &verr)
 }
 
 func TestValidateAttemptCount(t *testing.T) {

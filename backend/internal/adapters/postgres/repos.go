@@ -43,9 +43,20 @@ func (r topicRepo) List(ctx context.Context, owner domain.ID) ([]app.TopicSummar
 		out[i] = app.TopicSummary{
 			Topic:        domain.Topic{ID: domain.ID(row.ID), OwnerID: domain.ID(row.OwnerID), Name: row.Name, CreatedAt: row.CreatedAt},
 			ChapterCount: int(row.ChapterCount),
+			AttemptCount: int(row.AttemptCount),
+			LastScorePct: pct(row.LastScorePct),
+			BestScorePct: pct(row.BestScorePct),
 		}
 	}
 	return out, nil
+}
+
+// pct maps a score percentage column to nil when it is the -1 "no attempts" marker.
+func pct(v float64) *float64 {
+	if v < 0 {
+		return nil
+	}
+	return &v
 }
 
 func (r topicRepo) Update(ctx context.Context, t domain.Topic) error {
@@ -277,27 +288,42 @@ type attemptRepo struct {
 	db beginner
 }
 
-func toAttempt(r sqlcgen.ChapterAttempt) domain.ChapterAttempt {
+func toAttempt(r sqlcgen.Attempt) domain.Attempt {
 	ids := make([]domain.ID, len(r.QuestionIds))
 	for i, id := range r.QuestionIds {
 		ids[i] = domain.ID(id)
 	}
-	return domain.ChapterAttempt{
-		ID: domain.ID(r.ID), OwnerID: domain.ID(r.OwnerID), ChapterID: domain.ID(r.ChapterID),
+	scope := domain.AttemptScope{Type: domain.ScopeType(r.Scope)}
+	if r.TopicID != nil {
+		scope.ID = domain.ID(*r.TopicID)
+	} else if r.ChapterID != nil {
+		scope.ID = domain.ID(*r.ChapterID)
+	}
+	return domain.Attempt{
+		ID: domain.ID(r.ID), OwnerID: domain.ID(r.OwnerID), Scope: scope,
 		RequestedCount: int(r.RequestedCount), QuestionIDs: ids,
 		TotalScore: r.TotalScore, MaxScore: int(r.MaxScore), StartedAt: r.StartedAt, SubmittedAt: r.SubmittedAt,
 	}
 }
 
-func (r attemptRepo) Create(ctx context.Context, a domain.ChapterAttempt) error {
+func (r attemptRepo) Create(ctx context.Context, a domain.Attempt) error {
 	ids := make([]string, len(a.QuestionIDs))
 	for i, id := range a.QuestionIDs {
 		ids[i] = string(id)
 	}
+	// The database checks that exactly one of topic_id and chapter_id is set.
+	scopeID := string(a.Scope.ID)
+	var topicID, chapterID *string
+	if a.Scope.Type == domain.ScopeTopic {
+		topicID = &scopeID
+	} else {
+		chapterID = &scopeID
+	}
 	return inTx(ctx, r.db, func(q *sqlcgen.Queries) error {
 		err := q.CreateAttempt(ctx, sqlcgen.CreateAttemptParams{
-			ID: string(a.ID), OwnerID: string(a.OwnerID), ChapterID: string(a.ChapterID), RequestedCount: i32(a.RequestedCount),
-			QuestionIds: ids, TotalScore: a.TotalScore, MaxScore: i32(a.MaxScore), StartedAt: a.StartedAt, SubmittedAt: a.SubmittedAt,
+			ID: string(a.ID), OwnerID: string(a.OwnerID), Scope: string(a.Scope.Type), TopicID: topicID, ChapterID: chapterID,
+			RequestedCount: i32(a.RequestedCount), QuestionIds: ids, TotalScore: a.TotalScore, MaxScore: i32(a.MaxScore),
+			StartedAt: a.StartedAt, SubmittedAt: a.SubmittedAt,
 		})
 		if err != nil {
 			return mapErr("attempt", err)
@@ -315,15 +341,15 @@ func (r attemptRepo) Create(ctx context.Context, a domain.ChapterAttempt) error 
 	})
 }
 
-func (r attemptRepo) Get(ctx context.Context, owner, id domain.ID) (domain.ChapterAttempt, error) {
+func (r attemptRepo) Get(ctx context.Context, owner, id domain.ID) (domain.Attempt, error) {
 	row, err := r.q.GetAttempt(ctx, sqlcgen.GetAttemptParams{OwnerID: string(owner), ID: string(id)})
 	if err != nil {
-		return domain.ChapterAttempt{}, mapErr("attempt", err)
+		return domain.Attempt{}, mapErr("attempt", err)
 	}
 	a := toAttempt(row)
 	answers, err := r.q.ListAnswers(ctx, row.ID)
 	if err != nil {
-		return domain.ChapterAttempt{}, mapErr("answers", err)
+		return domain.Attempt{}, mapErr("answers", err)
 	}
 	a.Answers = make([]domain.Answer, len(answers))
 	for i, ans := range answers {
@@ -332,12 +358,13 @@ func (r attemptRepo) Get(ctx context.Context, owner, id domain.ID) (domain.Chapt
 	return a, nil
 }
 
-func (r attemptRepo) ListByChapter(ctx context.Context, owner, chapterID domain.ID) ([]domain.ChapterAttempt, error) {
-	rows, err := r.q.ListAttemptsByChapter(ctx, sqlcgen.ListAttemptsByChapterParams{OwnerID: string(owner), ChapterID: string(chapterID)})
+func (r attemptRepo) ListByChapter(ctx context.Context, owner, chapterID domain.ID) ([]domain.Attempt, error) {
+	id := string(chapterID)
+	rows, err := r.q.ListAttemptsByChapter(ctx, sqlcgen.ListAttemptsByChapterParams{OwnerID: string(owner), ChapterID: &id})
 	if err != nil {
 		return nil, mapErr("attempts", err)
 	}
-	out := make([]domain.ChapterAttempt, len(rows))
+	out := make([]domain.Attempt, len(rows))
 	for i, row := range rows {
 		out[i] = toAttempt(row)
 	}
@@ -352,12 +379,13 @@ func (r attemptRepo) ListByOwner(ctx context.Context, owner domain.ID, limit int
 	out := make([]app.AttemptSummary, len(rows))
 	for i, row := range rows {
 		out[i] = app.AttemptSummary{
-			ChapterAttempt: toAttempt(sqlcgen.ChapterAttempt{
-				ID: row.ID, OwnerID: row.OwnerID, ChapterID: row.ChapterID, RequestedCount: row.RequestedCount, QuestionIds: row.QuestionIds,
+			Attempt: toAttempt(sqlcgen.Attempt{
+				ID: row.ID, OwnerID: row.OwnerID, Scope: row.Scope, TopicID: row.TopicID, ChapterID: row.ChapterID,
+				RequestedCount: row.RequestedCount, QuestionIds: row.QuestionIds,
 				TotalScore: row.TotalScore, MaxScore: row.MaxScore, StartedAt: row.StartedAt, SubmittedAt: row.SubmittedAt,
 			}),
 			ChapterTitle: row.ChapterTitle,
-			TopicID:      domain.ID(row.TopicID),
+			TopicID:      domain.ID(row.ScopeTopicID),
 			TopicName:    row.TopicName,
 		}
 	}

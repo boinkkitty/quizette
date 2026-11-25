@@ -6,8 +6,25 @@ import (
 	"github.com/boinkkitty/quizette/backend/internal/domain"
 )
 
+// scopeRequest names an attempt scope: exactly one of chapterId and topicId is set.
+type scopeRequest struct {
+	ChapterID string `json:"chapterId"`
+	TopicID   string `json:"topicId"`
+}
+
+func (r scopeRequest) scope() (domain.AttemptScope, error) {
+	switch {
+	case r.ChapterID != "" && r.TopicID == "":
+		return domain.ChapterScope(domain.ID(r.ChapterID)), nil
+	case r.TopicID != "" && r.ChapterID == "":
+		return domain.TopicScope(domain.ID(r.TopicID)), nil
+	default:
+		return domain.AttemptScope{}, domain.Invalid("exactly one of chapterId and topicId is required")
+	}
+}
+
 type submitQuizRequest struct {
-	ChapterID   string   `json:"chapterId"`
+	scopeRequest
 	QuestionIDs []string `json:"questionIds"`
 	Answers     []struct {
 		QuestionID string `json:"questionId"`
@@ -16,15 +33,14 @@ type submitQuizRequest struct {
 }
 
 type drawQuizRequest struct {
-	ChapterID string `json:"chapterId"`
-	Count     int    `json:"count"`
+	scopeRequest
+	Count int `json:"count"`
 }
 
 // drawnQuizDTO never carries correct answers: the quiz is still being taken.
 type drawnQuizDTO struct {
-	ChapterID    string        `json:"chapterId"`
-	ChapterTitle string        `json:"chapterTitle"`
-	Questions    []questionDTO `json:"questions"`
+	scopeDTO
+	Questions []questionDTO `json:"questions"`
 }
 
 func (s *Server) drawQuiz(w http.ResponseWriter, r *http.Request) {
@@ -33,14 +49,19 @@ func (s *Server) drawQuiz(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err)
 		return
 	}
-	q, err := s.cfg.Practice.DrawChapterQuiz(r.Context(), mustUser(r).ID, domain.ID(req.ChapterID), req.Count)
+	scope, err := req.scope()
 	if err != nil {
 		s.writeError(w, r, err)
 		return
 	}
-	out := drawnQuizDTO{ChapterID: q.ChapterID.String(), ChapterTitle: q.ChapterTitle, Questions: make([]questionDTO, len(q.Questions))}
+	q, err := s.cfg.Practice.DrawQuiz(r.Context(), mustUser(r).ID, scope, req.Count)
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+	out := drawnQuizDTO{scopeDTO: toScopeDTO(q.Scope, q.ScopeName), Questions: make([]questionDTO, len(q.Questions))}
 	for i, dq := range q.Questions {
-		out.Questions[i] = toQuestionDTO(dq, false)
+		out.Questions[i] = toScopedQuestionDTO(dq, false)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -48,6 +69,11 @@ func (s *Server) drawQuiz(w http.ResponseWriter, r *http.Request) {
 func (s *Server) submitQuiz(w http.ResponseWriter, r *http.Request) {
 	var req submitQuizRequest
 	if err := decodeJSON(r, &req); err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+	scope, err := req.scope()
+	if err != nil {
 		s.writeError(w, r, err)
 		return
 	}
@@ -59,7 +85,7 @@ func (s *Server) submitQuiz(w http.ResponseWriter, r *http.Request) {
 	for _, a := range req.Answers {
 		responses[domain.ID(a.QuestionID)] = a.Selected
 	}
-	v, err := s.cfg.Practice.SubmitChapterQuiz(r.Context(), mustUser(r).ID, domain.ID(req.ChapterID), ids, responses)
+	v, err := s.cfg.Practice.SubmitQuiz(r.Context(), mustUser(r).ID, scope, ids, responses)
 	if err != nil {
 		s.writeError(w, r, err)
 		return
@@ -68,7 +94,7 @@ func (s *Server) submitQuiz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getAttempt(w http.ResponseWriter, r *http.Request) {
-	v, err := s.cfg.Practice.GetChapterAttempt(r.Context(), mustUser(r).ID, idParam(r))
+	v, err := s.cfg.Practice.GetAttempt(r.Context(), mustUser(r).ID, idParam(r))
 	if err != nil {
 		s.writeError(w, r, err)
 		return
@@ -98,7 +124,7 @@ func (s *Server) listAllAttempts(w http.ResponseWriter, r *http.Request) {
 	out := make([]attemptHistoryItemDTO, len(attempts))
 	for i, a := range attempts {
 		out[i] = attemptHistoryItemDTO{
-			attemptSummaryDTO: toAttemptSummary(a.ChapterAttempt),
+			attemptSummaryDTO: toAttemptSummary(a.Attempt),
 			ChapterTitle:      a.ChapterTitle,
 			TopicID:           a.TopicID.String(),
 			TopicName:         a.TopicName,

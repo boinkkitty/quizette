@@ -37,10 +37,11 @@ HTTP ─►│ adapters/http    │                │ adapters/postgres (sqlc) 
 ## 4. Aggregate map
 ```
 Topic 1 ──< Chapter 1 ── 1 QuestionSet 1 ──< Question
-               │  1                               ▲ (by ID)
-               ├──< ProcessingJob ··· Document     │
-               │      (metadata only) (transient)  │
-               └──< ChapterAttempt ──< Answer ─────┘
+  │            │  1                               ▲ (by ID)
+  │            ├──< ProcessingJob ··· Document     │
+  │            │      (metadata only) (transient)  │
+  │            └──< Attempt ──< Answer ────────────┘
+  └──────────────< Attempt   (scope: chapter or topic)
 ```
 `──` ownership/ID reference · `···` used in-memory only, never persisted.
 
@@ -93,15 +94,17 @@ Topic 1 ──< Chapter 1 ── 1 QuestionSet 1 ──< Question
 
 Example: correct = {A,C}. Pick A,C → 1. Pick A → 0.5. Pick A,B → 0. Pick all 4 → 0.
 
-### ChapterAttempt (aggregate root)
-- **What:** one finished practice run on a chapter. `ID, OwnerID, ChapterID, RequestedCount, QuestionIDs (ordered), Answers[], TotalScore, MaxScore, StartedAt, SubmittedAt`. Created graded when the quiz is submitted; an unfinished quiz lives only in its browser tab (ADR 0011).
+### Attempt (aggregate root)
+- **What:** one finished practice run over an attempt scope: one chapter, or a whole topic (its ready chapters) (ADR 0010). `ID, OwnerID, Scope{Type, ID}, RequestedCount, QuestionIDs (ordered), Answers[], TotalScore, MaxScore, StartedAt, SubmittedAt`. Created graded when the quiz is submitted; an unfinished quiz lives only in its browser tab (ADR 0011).
 - **Why its own aggregate:** many attempts per set, written by the user while the set is read-only. Putting attempts inside QuestionSet would make the immutable bank a write hotspot and grow unboundedly.
-- **Invariants:** count is a multiple of 5, at least 5 and ≤ min(set size, 50); drawn questions are distinct members of the chapter's set; answers only for drawn questions; score derived, never client-supplied.
-- **Snapshot of `QuestionIDs`:** history shows exactly what was asked, in what order, even though selection is randomised.
-- **Name:** "ChapterAttempt" because the attempt is always scoped to one chapter's set; "Quiz" is the UI word only (in GLOSSARY as a synonym to avoid in code).
+- **Invariants:** count is a multiple of 5, at least 5 and ≤ min(pool size, 50), where the pool (`domain.Pool`) is the question sets of the scope's ready chapters; drawn questions are distinct members of the pool; answers only for drawn questions; score derived, never client-supplied.
+- **Snapshot of `QuestionIDs`:** history shows exactly what was asked, in what order, even though selection is randomised, and chapters added to a topic later don't change its past attempts. An answer's chapter is derived through question → question set → chapter.
+- **Stats:** a chapter's attempt count and best score count chapter-scoped attempts only; a topic's count, last and best score count topic-scoped attempts only.
+- **Name:** "Attempt" with a scope rather than a ChapterAttempt per chapter (ADR 0010); "Quiz" is the UI word only.
 
-### DrawQuestions (domain service)
-- Draws N distinct questions from a QuestionSet at random after checking the count rule (ADR 0010). Stateless: the draw is returned to the client and not stored until the quiz is submitted (ADR 0011).
+### DrawQuestions, SplitAcrossChapters (domain services)
+- `SplitAcrossChapters` splits N across a topic's ready chapters in proportion to their question counts, with largest-remainder rounding; remainder ties go to the earlier-created chapter. The frontend's split preview must match it.
+- `DrawQuestions` checks the count rule against the pool, draws each chapter's share at random, then shuffles the whole draw so chapters are mixed. A chapter scope is a pool of one set. Stateless: the draw is returned to the client and not stored until the quiz is submitted (ADR 0011).
 
 ### User / Session (Identity — not rich aggregates)
 - Plain entities behind repositories; rules are mostly crypto/protocol (bcrypt, OAuth state/PKCE), not domain behaviour.
@@ -120,8 +123,8 @@ Example: correct = {A,C}. Pick A,C → 1. Pick A → 0.5. Pick A,B → 0. Pick a
 | `processing_jobs` | Only `doc_filename, doc_size, doc_sha256` — **no bytes column**, the no-storage policy is visible in the schema. sha256 enables future dedupe/caching. Metric columns (`strategy, model, *_tokens, extract_ms, llm_ms, total_ms, extracted_chars, validation_retries`) for the experiment and cost tracking. |
 | `question_sets` | `chapter_id UNIQUE` enforces 1:1 today; dropping the constraint later enables versioned regeneration. |
 | `questions` | `options jsonb` (ordered list, always read/written with the question, never queried alone — a child table adds joins for nothing); `correct int[]` = indices into options; `position` for stable order. |
-| `chapter_attempts` | `question_ids uuid[]` snapshot of draw order; index `(owner_id, chapter_id, started_at desc)` for history. |
-| `chapter_attempt_answers` | Real table (not jsonb), indexed `(question_id)`. `points numeric(5,4)` for MRQ fractions. |
+| `attempts` | `scope` with exactly one of `topic_id` / `chapter_id` set (CHECK constraint); `question_ids uuid[]` snapshot of draw order; indexes `(owner_id, chapter_id, started_at desc)` and `(owner_id, topic_id, started_at desc)` for history. |
+| `attempt_answers` | Real table (not jsonb), indexed `(question_id)`. `points numeric(5,4)` for MRQ fractions. |
 
 Cross-cutting:
 - **UUIDv7** IDs generated in the app (`IDGenerator` port) → domain objects have identity before persistence; time-ordered for index locality.
@@ -144,7 +147,7 @@ client polls GET /api/jobs/:id
 
 ## 8. Implementation notes
 
-- **Exported fields, guarded transitions.** Aggregates use exported fields (idiomatic Go, simple mapping in the Postgres adapter), but state changes go through methods (`ProcessingJob.Start/Succeed/Fail`, `Chapter.MarkReady/MarkFailed`) that enforce the state machines, and `NewChapterAttempt` only builds an attempt that is already graded.
+- **Exported fields, guarded transitions.** Aggregates use exported fields (idiomatic Go, simple mapping in the Postgres adapter), but state changes go through methods (`ProcessingJob.Start/Succeed/Fail`, `Chapter.MarkReady/MarkFailed`) that enforce the state machines, and `NewAttempt` only builds an attempt that is already graded.
 - **Lenient anti-corruption.** `NewQuestionSet` discards invalid LLM drafts and succeeds if at least `spec.Count` valid ones remain; only if too few are valid does the job retry once with the violations fed back into the prompt.
 - **Uploads never touch disk.** The HTTP adapter streams multipart parts into memory instead of using `ParseMultipartForm` (which spills large files to temp files). A schema test asserts there is no `bytea` column anywhere.
 - **Neon / PgBouncer.** The pool uses `QueryExecModeExec` (no server-side prepared statements). In this mode pgx cannot infer parameter types, so `jsonb` is mapped to Go `string` (a `[]byte` would be sent as `bytea`).

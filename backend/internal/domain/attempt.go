@@ -14,15 +14,71 @@ type Answer struct {
 	Score      Score
 }
 
-// ChapterAttempt is one finished practice run ("quiz" in the UI) over a chapter's
-// QuestionSet (aggregate root). It only exists once submitted (ADR 0011).
-// QuestionIDs snapshot the draw order.
+// ScopeType says what an attempt draws from.
+type ScopeType string
+
+// Scope types.
+const (
+	ScopeChapter ScopeType = "chapter"
+	ScopeTopic   ScopeType = "topic"
+)
+
+// AttemptScope is what an attempt draws from: one chapter, or a whole topic (its
+// ready chapters). ID is the chapter's or the topic's ID, according to Type.
+type AttemptScope struct {
+	Type ScopeType
+	ID   ID
+}
+
+// ChapterScope returns the scope of a chapter quiz.
+func ChapterScope(chapterID ID) AttemptScope { return AttemptScope{Type: ScopeChapter, ID: chapterID} }
+
+// TopicScope returns the scope of a topic quiz.
+func TopicScope(topicID ID) AttemptScope { return AttemptScope{Type: ScopeTopic, ID: topicID} }
+
+// Pool is the question sets an attempt scope draws from: one set for a chapter
+// scope, one per ready chapter for a topic scope. Its order is the order the draw
+// splits questions in (see SplitAcrossChapters).
+type Pool []QuestionSet
+
+// Size returns the number of questions across the pool.
+func (p Pool) Size() int {
+	n := 0
+	for _, s := range p {
+		n += s.Size()
+	}
+	return n
+}
+
+// Question finds a question in the pool by ID.
+func (p Pool) Question(id ID) (Question, bool) {
+	for _, s := range p {
+		if q, ok := s.Question(id); ok {
+			return q, true
+		}
+	}
+	return Question{}, false
+}
+
+// ChapterOf returns the chapter the question id comes from, if it is in the pool.
+func (p Pool) ChapterOf(id ID) (ID, bool) {
+	for _, s := range p {
+		if _, ok := s.Question(id); ok {
+			return s.ChapterID, true
+		}
+	}
+	return "", false
+}
+
+// Attempt is one finished practice run ("quiz" in the UI) over an attempt scope
+// (aggregate root). It only exists once submitted (ADR 0011). QuestionIDs snapshot
+// the draw order, so chapters added to a topic later don't change it (ADR 0010).
 //
 // The server never sees a quiz start, so StartedAt is the submission time too.
-type ChapterAttempt struct {
+type Attempt struct {
 	ID             ID
 	OwnerID        ID
-	ChapterID      ID
+	Scope          AttemptScope
 	RequestedCount int
 	QuestionIDs    []ID
 	Answers        []Answer
@@ -46,14 +102,15 @@ func ValidateAttemptCount(n, poolSize int) error {
 	return nil
 }
 
-// NewChapterAttempt grades a submitted quiz over questionIDs (the questions drawn
-// from set, in draw order) and returns the attempt. responses maps question ID to the
-// selected option indices; unanswered questions score 0. Scores are always computed
-// here, never accepted from the client. The drawn questions must be distinct members
-// of set and their count must pass ValidateAttemptCount.
-func NewChapterAttempt(id, ownerID ID, set QuestionSet, questionIDs []ID, responses map[ID][]int, now time.Time) (ChapterAttempt, error) {
-	if err := ValidateAttemptCount(len(questionIDs), set.Size()); err != nil {
-		return ChapterAttempt{}, err
+// NewAttempt grades a submitted quiz over questionIDs (the questions drawn from
+// pool, the scope's question sets, in draw order) and returns the attempt. responses
+// maps question ID to the selected option indices; unanswered questions score 0.
+// Scores are always computed here, never accepted from the client. The drawn
+// questions must be distinct members of pool and their count must pass
+// ValidateAttemptCount against the pool's size.
+func NewAttempt(id, ownerID ID, scope AttemptScope, pool Pool, questionIDs []ID, responses map[ID][]int, now time.Time) (Attempt, error) {
+	if err := ValidateAttemptCount(len(questionIDs), pool.Size()); err != nil {
+		return Attempt{}, err
 	}
 	var problems []string
 	drawn := make(map[ID]bool, len(questionIDs))
@@ -72,9 +129,9 @@ func NewChapterAttempt(id, ownerID ID, set QuestionSet, questionIDs []ID, respon
 	answers := make([]Answer, 0, len(questionIDs))
 	var total float64
 	for pos, qid := range questionIDs {
-		q, ok := set.Question(qid)
+		q, ok := pool.Question(qid)
 		if !ok {
-			problems = append(problems, fmt.Sprintf("question %s is not in this chapter", qid))
+			problems = append(problems, fmt.Sprintf("question %s is not in this %s", qid, scope.Type))
 			continue
 		}
 		selected := slices.Clone(responses[qid])
@@ -92,12 +149,12 @@ func NewChapterAttempt(id, ownerID ID, set QuestionSet, questionIDs []ID, respon
 		answers = append(answers, Answer{QuestionID: qid, Position: pos, Selected: selected, Score: s})
 	}
 	if err := newValidationError(problems); err != nil {
-		return ChapterAttempt{}, err
+		return Attempt{}, err
 	}
-	return ChapterAttempt{
+	return Attempt{
 		ID:             id,
 		OwnerID:        ownerID,
-		ChapterID:      set.ChapterID,
+		Scope:          scope,
 		RequestedCount: len(questionIDs),
 		QuestionIDs:    slices.Clone(questionIDs),
 		Answers:        answers,

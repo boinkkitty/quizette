@@ -9,8 +9,13 @@ SELECT * FROM topics WHERE owner_id = $1 AND id = $2;
 -- name: GetTopicByName :one
 SELECT * FROM topics WHERE owner_id = $1 AND name = $2;
 
+-- Performance counts topic-scoped attempts only. The score columns are -1 when there
+-- are none (mapped to nil).
 -- name: ListTopics :many
-SELECT t.*, (SELECT count(*) FROM chapters c WHERE c.topic_id = t.id)::int AS chapter_count
+SELECT t.*, (SELECT count(*) FROM chapters c WHERE c.topic_id = t.id)::int AS chapter_count,
+    coalesce((SELECT count(*) FROM attempts a WHERE a.topic_id = t.id), 0)::int AS attempt_count,
+    coalesce((SELECT a.total_score / a.max_score * 100 FROM attempts a WHERE a.topic_id = t.id ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1), -1)::float8 AS last_score_pct,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.topic_id = t.id), -1)::float8 AS best_score_pct
 FROM topics t
 WHERE t.owner_id = $1
 ORDER BY t.name;
@@ -32,16 +37,17 @@ SELECT * FROM chapters WHERE id = $1;
 
 -- Chapters of one topic with list-view aggregates. The aggregates are correlated
 -- subqueries rather than joins so one chapter row can't be multiplied by its questions
--- and attempts. best_score_pct is -1 when there are no submitted attempts (mapped to nil).
+-- and attempts. Attempt figures count chapter-scoped attempts only (a topic attempt has
+-- no chapter_id). best_score_pct is -1 when there are none (mapped to nil).
 -- name: ListChaptersByTopic :many
 SELECT c.*, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
-    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
-    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
+    coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
 WHERE c.owner_id = $1 AND c.topic_id = $2
-ORDER BY c.created_at;
+ORDER BY c.created_at, c.id;
 
 -- Same columns as ListChaptersByTopic (the Go adapter converts between the two row types),
 -- across all of a user's topics. The optional filters are skipped when NULL; the explicit
@@ -49,8 +55,8 @@ ORDER BY c.created_at;
 -- name: ListChaptersByOwner :many
 SELECT c.*, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
-    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
-    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
+    coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
 WHERE c.owner_id = sqlc.arg('owner_id')
