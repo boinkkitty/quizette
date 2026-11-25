@@ -37,6 +37,7 @@ const VARIANTS = [
   { key: 'A', name: 'Next up' },
   { key: 'B', name: 'Scoreboard' },
   { key: 'C', name: 'Activity feed' },
+  { key: 'D', name: 'B + feed (chosen)' },
 ] as const
 
 const STATES = ['real', 'new', 'empty'] as const
@@ -44,7 +45,7 @@ type DataState = (typeof STATES)[number]
 
 export const Route = createFileRoute('/_app/')({
   validateSearch: z.object({
-    variant: z.enum(['A', 'B', 'C']).optional(),
+    variant: z.enum(['A', 'B', 'C', 'D']).optional(),
     state: z.enum(STATES).optional(),
   }),
   loader: ({ context }) =>
@@ -178,11 +179,15 @@ function DashboardPrototype() {
       {variant === 'A' && <VariantA m={m} />}
       {variant === 'B' && <VariantB m={m} />}
       {variant === 'C' && <VariantC m={m} />}
+      {variant === 'D' && <VariantB m={m} withFeed />}
       <PrototypeSwitcher
         variants={VARIANTS}
         current={variant}
         onChange={(k) =>
-          void navigate({ search: (s) => ({ ...s, variant: k as 'A' | 'B' | 'C' }), replace: true })
+          void navigate({
+            search: (s) => ({ ...s, variant: k as 'A' | 'B' | 'C' | 'D' }),
+            replace: true,
+          })
         }
       />
       {import.meta.env.DEV && (
@@ -235,7 +240,7 @@ function Section({
   title: string
   action?: ReactNode
   children: ReactNode
-  className?: string
+  className?: string | undefined
 }) {
   return (
     <section className={cn('min-w-0', className)}>
@@ -503,7 +508,7 @@ function ScoreStrip({ attempts }: { attempts: AttemptHistoryItem[] }) {
   )
 }
 
-function VariantB({ m }: { m: Model }) {
+function VariantB({ m, withFeed = false }: { m: Model; withFeed?: boolean }) {
   if (m.chapters.length === 0)
     return (
       <>
@@ -549,7 +554,7 @@ function VariantB({ m }: { m: Model }) {
           />
         </div>
 
-        {m.attempts.length > 0 && (
+        {!withFeed && m.attempts.length > 0 && (
           <Section title="Recent scores">
             <ScoreStrip attempts={m.attempts} />
           </Section>
@@ -597,7 +602,9 @@ function VariantB({ m }: { m: Model }) {
           </ul>
         </Section>
 
-        {m.weakest.length > 0 && (
+        {withFeed && <ActivityFeed m={m} />}
+
+        {!withFeed && m.weakest.length > 0 && (
           <Section title="Lowest last scores">
             <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {m.weakest.slice(0, 6).map((p) => (
@@ -688,7 +695,7 @@ function FeedRow({ item }: { item: FeedItem }) {
   )
 }
 
-function VariantC({ m }: { m: Model }) {
+function feedGroups(m: Model): { label: string; items: FeedItem[] }[] {
   const items: FeedItem[] = [
     ...m.attempts.map((a) => ({ kind: 'attempt' as const, at: a.submittedAt ?? a.startedAt, a })),
     ...m.chapters.map((c) => ({ kind: 'chapter' as const, at: c.createdAt, c })),
@@ -701,7 +708,31 @@ function VariantC({ m }: { m: Model }) {
     if (g?.label === label) g.items.push(it)
     else groups.push({ label, items: [it] })
   }
+  return groups
+}
 
+function ActivityFeed({ m, className }: { m: Model; className?: string }) {
+  return (
+    <Section title="Activity" className={className}>
+      <div className="space-y-6">
+        {feedGroups(m).map((g) => (
+          <div key={g.label}>
+            <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">{g.label}</p>
+            <ul className="rounded-xl border bg-card p-1">
+              {g.items.map((it) => (
+                <li key={`${it.kind}-${it.kind === 'attempt' ? it.a.id : it.c.id}`}>
+                  <FeedRow item={it} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+function VariantC({ m }: { m: Model }) {
   const quickStart = m.topicPerf.filter((t) => t.ready > 0)
 
   return (
@@ -760,22 +791,7 @@ function VariantC({ m }: { m: Model }) {
               </Section>
             )}
           </aside>
-          <Section title="Activity" className="lg:order-1">
-            <div className="space-y-6">
-              {groups.map((g) => (
-                <div key={g.label}>
-                  <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">{g.label}</p>
-                  <ul className="rounded-xl border bg-card p-1">
-                    {g.items.map((it) => (
-                      <li key={`${it.kind}-${it.kind === 'attempt' ? it.a.id : it.c.id}`}>
-                        <FeedRow item={it} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </Section>
+          <ActivityFeed m={m} className="lg:order-1" />
         </div>
       )}
     </>
