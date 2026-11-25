@@ -50,10 +50,13 @@ func newHarness(t *testing.T, wrap ...func(*app.Repos)) *harness {
 	ids := &app.IdentityService{Deps: deps, Hasher: apptest.Hasher{}, Providers: map[string]app.OAuthProvider{
 		"github": apptest.OAuthProvider{ProviderName: "github", Identity: domain.OAuthIdentity{ProviderUserID: "1", Email: "gh@example.com", EmailVerified: true}},
 	}}
-	h := qhttp.NewRouter(qhttp.Config{
+	h, err := qhttp.NewRouter(qhttp.Config{
 		Identity: ids, Library: &app.LibraryService{Deps: deps}, Generation: gen, Practice: &app.PracticeService{Deps: deps},
 		Logger: logger, PublicURL: "http://app.test",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return &harness{srv: srv, logs: logs, clock: clock}

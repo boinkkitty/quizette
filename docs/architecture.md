@@ -2,12 +2,12 @@
 
 ## 1. System overview
 ```
- Browser ──► Cloudflare Worker ──┬─► static assets (React SPA)
-                                 └─► /api/*  ──► Render: Go API ──► Neon Postgres
-                                                     │
-                                                     └──► Gemini (QuestionGenerator port)
+ Browser ──► Render: Go binary ──┬─► embedded static assets (React SPA)
+                                 └─► /api/*  ──► Neon Postgres
+                                        │
+                                        └──► Gemini (QuestionGenerator port)
 ```
-One origin for the browser (Worker), so the HttpOnly session cookie is first-party and no CORS is needed (ADR 0004, ADR 0007). The Go API is a single deployable (modular monolith) structured as ports & adapters.
+One origin for the browser (the Go binary serves both), so the HttpOnly session cookie is first-party and no CORS is needed (ADR 0004, ADR 0007, ADR 0009). The Go API is a single deployable (modular monolith) structured as ports & adapters.
 
 ## 2. Hexagonal layers
 ```
@@ -161,5 +161,5 @@ client polls GET /api/jobs/:id
 | Composition root | `backend/cmd/api/main.go` |
 | Strategy benchmark | `backend/cmd/genbench` |
 | SPA | `frontend/src` (routes, `api/schemas.ts` zod contract) |
-| Edge proxy | `worker/src/index.ts` |
+| Embedded SPA | `backend/web` (filled by the root `Dockerfile`), served by `backend/internal/adapters/http/spa.go` |
 | E2E | `e2e/tests` |

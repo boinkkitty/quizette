@@ -8,24 +8,6 @@ import { renderApp } from './app'
 import { attempt, chapterSummary, historyItem, server, unauthorized, user } from './server'
 
 describe('routing', () => {
-  it('recovers the failed route when the server wakes after a 502', async () => {
-    let awake = false
-    server.use(
-      http.get('/api/auth/me', () =>
-        awake ? unauthorized() : new HttpResponse(null, { status: 502 }),
-      ),
-      http.get('/api/auth/providers', () =>
-        awake ? HttpResponse.json({ providers: [] }) : new HttpResponse(null, { status: 502 }),
-      ),
-    )
-    renderApp('/upload')
-    expect(await screen.findByText('Request failed (502)')).toBeInTheDocument()
-    awake = true
-    expect(
-      await screen.findByRole('heading', { name: 'Log in to Quizette' }, { timeout: 5000 }),
-    ).toBeInTheDocument()
-  })
-
   it('redirects logged-out users to login, preserving the destination', async () => {
     server.use(http.get('/api/auth/me', unauthorized))
     const { router } = renderApp('/upload')

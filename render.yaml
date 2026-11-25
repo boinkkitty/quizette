@@ -2,9 +2,12 @@ services:
   - type: web
     name: quizette-api
     runtime: docker
-    rootDir: backend
+    # The image holds the API and the embedded frontend, so it builds from the repo root.
+    dockerContext: .
     dockerfilePath: ./Dockerfile
     plan: free
+    # Deploy a commit to main only once its GitHub checks have passed.
+    autoDeployTrigger: checksPass
     healthCheckPath: /readyz
     envVars:
       - key: APP_ENV
@@ -12,7 +15,7 @@ services:
       - key: DATABASE_URL
         sync: false # Neon pooled connection string
       - key: PUBLIC_URL
-        sync: false # Cloudflare Worker origin, e.g. https://quizette.<you>.workers.dev
+        sync: false # this service's own URL, e.g. https://quizette-api.onrender.com
       - key: GEMINI_API_KEY
         sync: false
       - key: GENERATION_STRATEGY

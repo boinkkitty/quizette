@@ -18,7 +18,7 @@ type Config struct {
 	Env         string // development | production
 	Port        string
 	DatabaseURL string
-	PublicURL   string // browser-facing origin (Worker / Vite dev server)
+	PublicURL   string // browser-facing origin (Render service / Vite dev server)
 	LogLevel    slog.Level
 	Version     string
 

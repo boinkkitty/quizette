@@ -29,7 +29,7 @@ export default defineConfig(({ command, mode }) => {
     resolve,
     server: {
       port: Number(required(env, 'DEV_PORT')),
-      // Same-origin in dev too: mirrors the Cloudflare Worker proxy in production.
+      // Same-origin in dev too, as in production, where the Go API serves the built app.
       proxy: { '/api': required(env, 'API_PROXY_TARGET') },
     },
   }
