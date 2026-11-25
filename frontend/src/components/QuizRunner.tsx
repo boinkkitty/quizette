@@ -20,15 +20,17 @@ import { cn } from '@/lib/utils'
 
 import type { Question } from '../api/schemas'
 import { questionTypeLabel } from '../lib/format'
-import { loadQuizProgress, saveQuizProgress } from '../lib/quizProgress'
+import type { QuizProgress } from '../lib/quizSlot'
 import { Spinner } from './Spinner'
 
 export type Responses = ReadonlyMap<string, readonly number[]>
 
 interface Props {
-  /** Progress is saved under this attempt and restored after a reload. */
-  attemptId: string
   questions: readonly Question[]
+  /** Where to resume, e.g. after a reload. Defaults to the first question, unanswered. */
+  initial?: QuizProgress
+  /** Called with the answers and position after every change, so they can be saved. */
+  onProgress?: (progress: QuizProgress) => void
   submitting: boolean
   onSubmit: (responses: Responses) => void
 }
@@ -42,20 +44,16 @@ const optionClass = (checked: boolean) =>
   )
 
 /** One question per screen. MCQ / True-False use radios; MRQ uses checkboxes. */
-export function QuizRunner({ attemptId, questions, submitting, onSubmit }: Props) {
+export function QuizRunner({ questions, initial, onProgress, submitting, onSubmit }: Props) {
   const idPrefix = useId()
-  const [saved] = useState(() =>
-    loadQuizProgress(
-      attemptId,
-      questions.map((q) => q.id),
-    ),
+  const [index, setIndex] = useState(initial?.index ?? 0)
+  const [responses, setResponses] = useState<Map<string, number[]>>(
+    () => new Map(initial?.responses),
   )
-  const [index, setIndex] = useState(saved.index)
-  const [responses, setResponses] = useState<Map<string, number[]>>(saved.responses)
-  // Keep the saved copy in step with every answer and page change.
+  // Report every answer and page change, so the caller's saved copy stays in step.
   useEffect(() => {
-    saveQuizProgress(attemptId, { index, responses })
-  }, [attemptId, index, responses])
+    onProgress?.({ index, responses })
+  }, [onProgress, index, responses])
   const [confirming, setConfirming] = useState(false)
   const question = questions[index]
   if (question === undefined) return null

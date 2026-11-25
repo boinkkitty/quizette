@@ -123,15 +123,14 @@ type answerDTO struct {
 }
 
 type attemptSummaryDTO struct {
-	ID          string     `json:"id"`
-	ChapterID   string     `json:"chapterId"`
-	Status      string     `json:"status"`
-	Count       int        `json:"count"`
-	TotalScore  float64    `json:"totalScore"`
-	MaxScore    int        `json:"maxScore"`
-	ScorePct    float64    `json:"scorePct"`
-	StartedAt   time.Time  `json:"startedAt"`
-	SubmittedAt *time.Time `json:"submittedAt"`
+	ID          string    `json:"id"`
+	ChapterID   string    `json:"chapterId"`
+	Count       int       `json:"count"`
+	TotalScore  float64   `json:"totalScore"`
+	MaxScore    int       `json:"maxScore"`
+	ScorePct    float64   `json:"scorePct"`
+	StartedAt   time.Time `json:"startedAt"`
+	SubmittedAt time.Time `json:"submittedAt"`
 }
 
 func toAttemptSummary(a domain.ChapterAttempt) attemptSummaryDTO {
@@ -140,7 +139,7 @@ func toAttemptSummary(a domain.ChapterAttempt) attemptSummaryDTO {
 		pct = math.Round(a.TotalScore/float64(a.MaxScore)*10000) / 100
 	}
 	return attemptSummaryDTO{
-		ID: a.ID.String(), ChapterID: a.ChapterID.String(), Status: string(a.Status), Count: a.RequestedCount,
+		ID: a.ID.String(), ChapterID: a.ChapterID.String(), Count: a.RequestedCount,
 		TotalScore: a.TotalScore, MaxScore: a.MaxScore, ScorePct: pct, StartedAt: a.StartedAt, SubmittedAt: a.SubmittedAt,
 	}
 }
@@ -160,12 +159,11 @@ type attemptDTO struct {
 	Answers      []answerDTO   `json:"answers"`
 }
 
-// toAttemptDTO reveals correct answers only after submission.
+// toAttemptDTO reveals correct answers: an attempt only exists once submitted.
 func toAttemptDTO(v app.AttemptView) attemptDTO {
-	reveal := v.Attempt.Status == domain.AttemptSubmitted
 	out := attemptDTO{attemptSummaryDTO: toAttemptSummary(v.Attempt), ChapterTitle: v.ChapterTitle, Questions: make([]questionDTO, len(v.Questions)), Answers: []answerDTO{}}
 	for i, q := range v.Questions {
-		out.Questions[i] = toQuestionDTO(q, reveal)
+		out.Questions[i] = toQuestionDTO(q, true)
 	}
 	for _, a := range v.Attempt.Answers {
 		out.Answers = append(out.Answers, answerDTO{QuestionID: a.QuestionID.String(), Selected: a.Selected, Points: a.Score.Points, Correct: a.Score.Correct})

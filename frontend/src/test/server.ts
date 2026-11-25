@@ -1,7 +1,16 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 
-import type { Attempt, AttemptHistoryItem, ChapterSummary, Job, Topic, User } from '../api/schemas'
+import type {
+  Attempt,
+  AttemptHistoryItem,
+  Chapter,
+  ChapterSummary,
+  DrawnQuiz,
+  Job,
+  Topic,
+  User,
+} from '../api/schemas'
 
 export const user: User = { id: 'u1', email: 'ada@example.com', name: 'Ada', avatarUrl: '' }
 
@@ -34,13 +43,12 @@ export function attempt(overrides: Partial<Attempt> = {}): Attempt {
   return {
     id: 'a1',
     chapterId: 'c1',
-    status: 'in_progress',
     count: 5,
     totalScore: 0,
     maxScore: 5,
     scorePct: 0,
-    startedAt: '2026-11-20T10:00:00Z',
-    submittedAt: null,
+    startedAt: '2026-11-20T10:05:00Z',
+    submittedAt: '2026-11-20T10:05:00Z',
     chapterTitle: 'Cells',
     answers: [],
     questions: [
@@ -70,6 +78,25 @@ export function attempt(overrides: Partial<Attempt> = {}): Attempt {
   }
 }
 
+/** The draw for a quiz over attempt()'s questions, as POST /api/quizzes/draw returns it. */
+export function drawnQuiz(overrides: Partial<DrawnQuiz> = {}): DrawnQuiz {
+  return { chapterId: 'c1', chapterTitle: 'Cells', questions: attempt().questions, ...overrides }
+}
+
+export function chapter(overrides: Partial<Chapter> = {}): Chapter {
+  return {
+    id: 'c1',
+    title: 'Cells',
+    status: 'ready',
+    topicId: 't1',
+    topicName: 'Biology',
+    questionCount: 10,
+    latestJob: null,
+    createdAt: '2026-11-20T10:00:00Z',
+    ...overrides,
+  }
+}
+
 export function chapterSummary(overrides: Partial<ChapterSummary> = {}): ChapterSummary {
   return {
     id: 'c1',
@@ -89,7 +116,6 @@ export function historyItem(overrides: Partial<AttemptHistoryItem> = {}): Attemp
   return {
     id: 'a1',
     chapterId: 'c1',
-    status: 'submitted',
     count: 5,
     totalScore: 2.5,
     maxScore: 5,

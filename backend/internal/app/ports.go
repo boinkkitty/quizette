@@ -129,16 +129,12 @@ type AttemptSummary struct {
 
 // ChapterAttemptRepository persists ChapterAttempts.
 type ChapterAttemptRepository interface {
+	// Create saves a submitted attempt and its answers together.
 	Create(ctx context.Context, a domain.ChapterAttempt) error
 	Get(ctx context.Context, ownerID, id domain.ID) (domain.ChapterAttempt, error)
-	// SaveSubmission saves a submitted attempt's score and answers. It returns
-	// domain.ErrConflict if the attempt is no longer in progress, so of two concurrent
-	// submissions only the first is kept.
-	SaveSubmission(ctx context.Context, a domain.ChapterAttempt) error
 	ListByChapter(ctx context.Context, ownerID, chapterID domain.ID) ([]domain.ChapterAttempt, error)
 	// ListByOwner returns at most limit of the user's attempts across all chapters, newest first.
 	ListByOwner(ctx context.Context, ownerID domain.ID, limit int) ([]AttemptSummary, error)
-	QuestionStats(ctx context.Context, ownerID, chapterID domain.ID) (map[domain.ID]domain.QuestionStat, error)
 }
 
 // Session is a login session; only the SHA-256 of its token is stored.

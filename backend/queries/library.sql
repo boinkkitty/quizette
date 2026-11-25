@@ -36,8 +36,8 @@ SELECT * FROM chapters WHERE id = $1;
 -- name: ListChaptersByTopic :many
 SELECT c.*, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
-    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id AND a.status = 'submitted'), 0)::int AS attempt_count,
-    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id AND a.status = 'submitted'), -1)::float8 AS best_score_pct
+    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
 WHERE c.owner_id = $1 AND c.topic_id = $2
@@ -49,8 +49,8 @@ ORDER BY c.created_at;
 -- name: ListChaptersByOwner :many
 SELECT c.*, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
-    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id AND a.status = 'submitted'), 0)::int AS attempt_count,
-    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id AND a.status = 'submitted'), -1)::float8 AS best_score_pct
+    coalesce((SELECT count(*) FROM chapter_attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT max(a.total_score / a.max_score * 100) FROM chapter_attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
 WHERE c.owner_id = sqlc.arg('owner_id')

@@ -11,7 +11,7 @@ import (
 
 func isNotFound(err error) bool { return errors.Is(err, domain.ErrNotFound) }
 
-// PracticeService runs ChapterAttempts.
+// PracticeService draws quizzes and records submitted ChapterAttempts.
 type PracticeService struct{ Deps }
 
 // AttemptView is an attempt with its drawn questions in draw order.
@@ -21,8 +21,42 @@ type AttemptView struct {
 	Questions    []domain.Question
 }
 
-// StartChapterAttempt draws count questions from a ready chapter.
-func (s *PracticeService) StartChapterAttempt(ctx context.Context, ownerID, chapterID domain.ID, count int) (AttemptView, error) {
+// DrawnQuiz is a fresh draw of questions for an unfinished quiz. Nothing is
+// stored: the client keeps it until it submits (ADR 0011).
+type DrawnQuiz struct {
+	ChapterID    domain.ID
+	ChapterTitle string
+	Questions    []domain.Question
+}
+
+// DrawChapterQuiz draws count questions at random from a ready chapter.
+func (s *PracticeService) DrawChapterQuiz(ctx context.Context, ownerID, chapterID domain.ID, count int) (DrawnQuiz, error) {
+	ch, err := s.Repos.Chapters.Get(ctx, ownerID, chapterID)
+	if err != nil {
+		return DrawnQuiz{}, err
+	}
+	if ch.Status != domain.ChapterReady {
+		return DrawnQuiz{}, domain.Invalid("chapter is not ready yet")
+	}
+	set, err := s.Repos.QuestionSets.GetByChapter(ctx, chapterID)
+	if err != nil {
+		return DrawnQuiz{}, err
+	}
+	ids, err := domain.DrawQuestions(set, count, s.rand())
+	if err != nil {
+		return DrawnQuiz{}, err
+	}
+	qs := make([]domain.Question, len(ids))
+	for i, id := range ids {
+		qs[i], _ = set.Question(id)
+	}
+	return DrawnQuiz{ChapterID: chapterID, ChapterTitle: ch.Title, Questions: qs}, nil
+}
+
+// SubmitChapterQuiz grades a finished quiz over questionIDs (as drawn, in draw order)
+// and records it as an attempt. The questions must belong to the ready chapter and
+// their count must pass the count rule; responses for other questions are rejected.
+func (s *PracticeService) SubmitChapterQuiz(ctx context.Context, ownerID, chapterID domain.ID, questionIDs []domain.ID, responses map[domain.ID][]int) (AttemptView, error) {
 	ch, err := s.Repos.Chapters.Get(ctx, ownerID, chapterID)
 	if err != nil {
 		return AttemptView{}, err
@@ -34,43 +68,14 @@ func (s *PracticeService) StartChapterAttempt(ctx context.Context, ownerID, chap
 	if err != nil {
 		return AttemptView{}, err
 	}
-	stats, err := s.Repos.Attempts.QuestionStats(ctx, ownerID, chapterID)
+	a, err := domain.NewChapterAttempt(s.IDs.NewID(), ownerID, set, questionIDs, responses, s.Clock.Now())
 	if err != nil {
 		return AttemptView{}, err
 	}
-	ids, err := domain.SelectQuestions(set, stats, count, s.rand())
-	if err != nil {
-		return AttemptView{}, err
-	}
-	a := domain.NewChapterAttempt(s.IDs.NewID(), ownerID, chapterID, ids, s.Clock.Now())
 	if err := s.Repos.Attempts.Create(ctx, a); err != nil {
 		return AttemptView{}, err
 	}
-	logctx.From(ctx, s.Logger).InfoContext(ctx, "attempt.started", slog.String("attempt_id", a.ID.String()), slog.String("chapter_id", chapterID.String()), slog.Int("count", count))
-	return view(a, ch, set), nil
-}
-
-// SubmitChapterAttempt grades and records responses.
-func (s *PracticeService) SubmitChapterAttempt(ctx context.Context, ownerID, attemptID domain.ID, responses map[domain.ID][]int) (AttemptView, error) {
-	a, err := s.Repos.Attempts.Get(ctx, ownerID, attemptID)
-	if err != nil {
-		return AttemptView{}, err
-	}
-	ch, err := s.Repos.Chapters.Get(ctx, ownerID, a.ChapterID)
-	if err != nil {
-		return AttemptView{}, err
-	}
-	set, err := s.Repos.QuestionSets.GetByChapter(ctx, a.ChapterID)
-	if err != nil {
-		return AttemptView{}, err
-	}
-	if err := a.Submit(set, responses, s.Clock.Now()); err != nil {
-		return AttemptView{}, err
-	}
-	if err := s.Repos.Attempts.SaveSubmission(ctx, a); err != nil {
-		return AttemptView{}, err
-	}
-	logctx.From(ctx, s.Logger).InfoContext(ctx, "attempt.submitted", slog.String("attempt_id", a.ID.String()), slog.Float64("score", a.TotalScore), slog.Int("max_score", a.MaxScore))
+	logctx.From(ctx, s.Logger).InfoContext(ctx, "attempt.submitted", slog.String("attempt_id", a.ID.String()), slog.String("chapter_id", chapterID.String()), slog.Float64("score", a.TotalScore), slog.Int("max_score", a.MaxScore))
 	return view(a, ch, set), nil
 }
 

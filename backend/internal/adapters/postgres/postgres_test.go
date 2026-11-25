@@ -5,12 +5,16 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -21,6 +25,7 @@ import (
 	"github.com/boinkkitty/quizette/backend/internal/app"
 	"github.com/boinkkitty/quizette/backend/internal/app/apptest"
 	"github.com/boinkkitty/quizette/backend/internal/domain"
+	"github.com/boinkkitty/quizette/backend/migrations"
 )
 
 // openDB uses TEST_DATABASE_URL if set (CI service container), otherwise
@@ -99,26 +104,25 @@ func TestRepositoriesFullFlow(t *testing.T) {
 		t.Fatalf("set: %v size %d", err, set.Size())
 	}
 
-	v, err := prac.StartChapterAttempt(ctx, u.ID, res.ChapterID, 5)
+	quiz, err := prac.DrawChapterQuiz(ctx, u.ID, res.ChapterID, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
+	drawn := make([]domain.ID, len(quiz.Questions))
 	responses := map[domain.ID][]int{}
-	for _, q := range v.Questions {
+	for i, q := range quiz.Questions {
+		drawn[i] = q.ID
 		responses[q.ID] = q.Correct
 	}
-	responses[v.Questions[0].ID] = []int{} // one wrong
-	if _, err := prac.SubmitChapterAttempt(ctx, u.ID, v.Attempt.ID, responses); err != nil {
+	responses[drawn[0]] = []int{} // one wrong
+	v, err := prac.SubmitChapterQuiz(ctx, u.ID, res.ChapterID, drawn, responses)
+	if err != nil {
 		t.Fatal(err)
 	}
 	got, err := prac.GetChapterAttempt(ctx, u.ID, v.Attempt.ID)
-	if err != nil || got.Attempt.TotalScore != 4 || len(got.Attempt.Answers) != 5 || got.Attempt.SubmittedAt == nil {
+	if err != nil || got.Attempt.TotalScore != 4 || len(got.Attempt.Answers) != 5 || got.Attempt.SubmittedAt.IsZero() ||
+		!slices.Equal(got.Attempt.QuestionIDs, drawn) || got.Attempt.Answers[0].QuestionID != drawn[0] || got.Attempt.Answers[0].Score.Points != 0 {
 		t.Fatalf("attempt: %v %+v", err, got.Attempt)
-	}
-
-	stats, err := store.Repos().Attempts.QuestionStats(ctx, u.ID, res.ChapterID)
-	if err != nil || len(stats) != 5 || stats[v.Questions[0].ID].LastPoints != 0 {
-		t.Fatalf("stats: %v %+v", err, stats)
 	}
 
 	detail, err := lib.GetTopic(ctx, u.ID, res.TopicID)
@@ -144,8 +148,9 @@ func TestRepositoriesFullFlow(t *testing.T) {
 			t.Errorf("ListChapters(%+v) = %d chapters, %v; want %d", tc.filter, len(got), err, tc.want)
 		}
 	}
-	// A second, unsubmitted attempt: history is newest first and the limit applies.
-	v2, err := prac.StartChapterAttempt(ctx, u.ID, res.ChapterID, 5)
+	// A second attempt: history is newest first and the limit applies.
+	time.Sleep(time.Millisecond) // started_at orders the history
+	v2, err := prac.SubmitChapterQuiz(ctx, u.ID, res.ChapterID, drawn, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,49 +286,93 @@ func TestChapterRenameDuringGeneration(t *testing.T) {
 	}
 }
 
-// Regression: two submissions of the same attempt could both pass the "still in
-// progress" check, and the second replaced the first one's answers and score.
-func TestConcurrentSubmissionKeepsFirst(t *testing.T) {
-	pool := openDB(t)
+// Migration 00002 deletes in-progress attempts (and their answers) and drops the
+// status column, keeping submitted attempts as they were.
+func TestMigrationDropsInProgressAttempts(t *testing.T) {
 	ctx := context.Background()
-	store, gen, lib, prac, u := newServices(t, pool, true)
-	res, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, NewTopicName: "Submit race", Count: 5, Filename: "a.pdf", Data: []byte("%PDF-1.4 a")})
+	pool := freshDB(t)
+	db := stdlib.OpenDBFromPool(pool)
+	t.Cleanup(func() { _ = db.Close() })
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = lib.DeleteTopic(ctx, u.ID, res.TopicID) })
-	v, err := prac.StartChapterAttempt(ctx, u.ID, res.ChapterID, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set, err := lib.GetQuestionSet(ctx, u.ID, res.ChapterID)
-	if err != nil {
+	if _, err := provider.UpTo(ctx, 1); err != nil {
 		t.Fatal(err)
 	}
 
-	// Both requests load the attempt while it's still in progress.
-	attempts := store.Repos().Attempts
-	first, _ := attempts.Get(ctx, u.ID, v.Attempt.ID)
-	second, _ := attempts.Get(ctx, u.ID, v.Attempt.ID)
-	allRight, allBlank := map[domain.ID][]int{}, map[domain.ID][]int{}
-	for _, q := range v.Questions {
-		allRight[q.ID] = q.Correct
+	const (
+		user, topic, chapter, set, question = "0190f5e2-0000-7000-8000-000000000001", "0190f5e2-0000-7000-8000-000000000002",
+			"0190f5e2-0000-7000-8000-000000000003", "0190f5e2-0000-7000-8000-000000000004", "0190f5e2-0000-7000-8000-000000000005"
+		submitted, inProgress = "0190f5e2-0000-7000-8000-00000000000a", "0190f5e2-0000-7000-8000-00000000000b"
+	)
+	seed := []string{
+		`INSERT INTO users (id, email, name, created_at) VALUES ('` + user + `', 'ada@example.com', 'Ada', now())`,
+		`INSERT INTO topics (id, owner_id, name, created_at) VALUES ('` + topic + `', '` + user + `', 'Bio', now())`,
+		`INSERT INTO chapters (id, topic_id, owner_id, title, status, created_at) VALUES ('` + chapter + `', '` + topic + `', '` + user + `', 'Cells', 'ready', now())`,
+		`INSERT INTO question_sets (id, chapter_id, created_at) VALUES ('` + set + `', '` + chapter + `', now())`,
+		`INSERT INTO questions (id, question_set_id, position, type, prompt, options, correct, explanation)
+			VALUES ('` + question + `', '` + set + `', 0, 'true_false', 'Cells?', '["True","False"]', '{0}', 'Yes.')`,
+		`INSERT INTO chapter_attempts (id, owner_id, chapter_id, requested_count, question_ids, status, total_score, max_score, started_at, submitted_at)
+			VALUES ('` + submitted + `', '` + user + `', '` + chapter + `', 5, '{` + question + `}', 'submitted', 0.5, 5, now(), now()),
+			       ('` + inProgress + `', '` + user + `', '` + chapter + `', 5, '{` + question + `}', 'in_progress', 0, 5, now(), NULL)`,
+		`INSERT INTO chapter_attempt_answers (attempt_id, question_id, position, selected, points, correct)
+			VALUES ('` + submitted + `', '` + question + `', 0, '{0}', 0.5, false), ('` + inProgress + `', '` + question + `', 0, '{1}', 0, false)`,
 	}
-	if err := first.Submit(set, allRight, time.Now()); err != nil {
-		t.Fatal(err)
+	for _, q := range seed {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatalf("seed %.40s: %v", q, err)
+		}
 	}
-	if err := second.Submit(set, allBlank, time.Now()); err != nil {
+
+	if _, err := provider.Up(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := attempts.SaveSubmission(ctx, first); err != nil {
+	var ids []string
+	if err := pool.QueryRow(ctx, `SELECT array_agg(id::text) FROM chapter_attempts`).Scan(&ids); err != nil {
 		t.Fatal(err)
 	}
-	if err := attempts.SaveSubmission(ctx, second); !errors.Is(err, domain.ErrConflict) {
-		t.Fatalf("second submission: %v, want ErrConflict", err)
+	if !slices.Equal(ids, []string{submitted}) {
+		t.Errorf("attempts after migration: %v, want only the submitted one", ids)
 	}
-	got, err := prac.GetChapterAttempt(ctx, u.ID, v.Attempt.ID)
-	if err != nil || got.Attempt.TotalScore != 5 || len(got.Attempt.Answers) != 5 {
-		t.Fatalf("stored attempt: %v score=%v answers=%d, want the first submission (5/5)", err, got.Attempt.TotalScore, len(got.Attempt.Answers))
+	var answers int
+	var score float64
+	if err := pool.QueryRow(ctx, `SELECT count(*), sum(ans.points)::float8 FROM chapter_attempt_answers ans`).Scan(&answers, &score); err != nil {
+		t.Fatal(err)
 	}
+	if answers != 1 || score != 0.5 {
+		t.Errorf("answers after migration: %d (points %v), want the submitted attempt's one", answers, score)
+	}
+	var hasStatus bool
+	err = pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'chapter_attempts' AND column_name = 'status')`).Scan(&hasStatus)
+	if err != nil || hasStatus {
+		t.Errorf("status column still there: %v %v", hasStatus, err)
+	}
+}
+
+// freshDB creates an empty database next to the shared test database, so a test can
+// run migrations from the start.
+func freshDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	ctx := context.Background()
+	admin := openDB(t)
+	name := fmt.Sprintf("quizette_migrate_%d", time.Now().UnixNano())
+	if _, err := admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := pgxpool.ParseConfig(admin.Config().ConnString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConnConfig.Database = name
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pool.Close()
+		_, _ = admin.Exec(ctx, "DROP DATABASE IF EXISTS "+name+" WITH (FORCE)")
+	})
+	return pool
 }

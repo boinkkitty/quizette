@@ -5,6 +5,8 @@ import { ApiError, request, requestVoid } from './client'
 import {
   type Attempt,
   type ChapterStatus,
+  type DrawnQuiz,
+  drawnQuizSchema,
   attemptHistoryItemSchema,
   attemptSchema,
   attemptSummarySchema,
@@ -199,28 +201,26 @@ export function useUpload() {
   })
 }
 
-export function useStartAttempt(chapterId: string) {
-  const qc = useQueryClient()
+/** Draws a quiz from a chapter. Nothing is stored on the server until it is submitted. */
+export function useDrawQuiz(chapterId: string) {
   return useMutation({
     mutationFn: (count: number) =>
-      request(attemptSchema, `/chapters/${chapterId}/attempts`, {
-        method: 'POST',
-        json: { count },
-      }),
-    onSuccess: async (attempt) => {
-      qc.setQueryData(keys.attempt(attempt.id), attempt)
-      await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })
-    },
+      request(drawnQuizSchema, '/quizzes/draw', { method: 'POST', json: { chapterId, count } }),
   })
 }
 
-export function useSubmitAttempt(attemptId: string) {
+/** Submits a finished quiz, which records it as an attempt and returns it graded. */
+export function useSubmitQuiz(quiz: DrawnQuiz) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (answers: ReadonlyMap<string, readonly number[]>) =>
-      request(attemptSchema, `/attempts/${attemptId}/submit`, {
+      request(attemptSchema, '/attempts', {
         method: 'POST',
-        json: { answers: [...answers].map(([questionId, selected]) => ({ questionId, selected })) },
+        json: {
+          chapterId: quiz.chapterId,
+          questionIds: quiz.questions.map((q) => q.id),
+          answers: [...answers].map(([questionId, selected]) => ({ questionId, selected })),
+        },
       }),
     onSuccess: async (attempt: Attempt) => {
       qc.setQueryData(keys.attempt(attempt.id), attempt)

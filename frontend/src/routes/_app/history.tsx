@@ -1,8 +1,6 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 
-import { Badge } from '@/components/ui/badge'
-
 import { allAttemptsQuery } from '../../api/queries'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
@@ -46,9 +44,7 @@ function HistoryPage() {
             <tbody className="divide-y">
               {attempts.map((a) => (
                 <tr key={a.id}>
-                  <td className="px-5 py-3 whitespace-nowrap">
-                    {formatDate(a.submittedAt ?? a.startedAt)}
-                  </td>
+                  <td className="px-5 py-3 whitespace-nowrap">{formatDate(a.submittedAt)}</td>
                   <td className="px-5 py-3">
                     <Link
                       to="/chapters/$chapterId"
@@ -61,33 +57,17 @@ function HistoryPage() {
                   </td>
                   <td className="px-5 py-3">{a.count}</td>
                   <td className="px-5 py-3 font-medium whitespace-nowrap">
-                    {a.status === 'submitted' ? (
-                      <>
-                        {formatPoints(a.totalScore)} / {a.maxScore}{' '}
-                        <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
-                      </>
-                    ) : (
-                      <Badge variant="info">In progress</Badge>
-                    )}
+                    {formatPoints(a.totalScore)} / {a.maxScore}{' '}
+                    <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
                   </td>
                   <td className="px-5 py-3 text-right">
-                    {a.status === 'submitted' ? (
-                      <Link
-                        to="/attempts/$attemptId/results"
-                        params={{ attemptId: a.id }}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        Review
-                      </Link>
-                    ) : (
-                      <Link
-                        to="/attempts/$attemptId"
-                        params={{ attemptId: a.id }}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        Resume
-                      </Link>
-                    )}
+                    <Link
+                      to="/attempts/$attemptId/results"
+                      params={{ attemptId: a.id }}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Review
+                    </Link>
                   </td>
                 </tr>
               ))}

@@ -23,11 +23,10 @@ type ChapterAttempt struct {
 	ChapterID      string
 	RequestedCount int32
 	QuestionIds    []string
-	Status         string
 	TotalScore     float64
 	MaxScore       int32
 	StartedAt      time.Time
-	SubmittedAt    *time.Time
+	SubmittedAt    time.Time
 }
 
 type ChapterAttemptAnswer struct {

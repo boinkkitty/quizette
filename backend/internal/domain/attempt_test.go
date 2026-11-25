@@ -2,8 +2,6 @@ package domain
 
 import (
 	"errors"
-	"math/rand/v2"
-	"slices"
 	"testing"
 	"time"
 )
@@ -29,12 +27,11 @@ func ids(set QuestionSet) []ID {
 	return out
 }
 
-func TestChapterAttemptSubmit(t *testing.T) {
+func TestNewChapterAttemptGrades(t *testing.T) {
 	t.Parallel()
 	set := readySet(t, 5) // q1 mcq(b), q2 tf(true), q3 mrq(a,c), q4 mcq, q5 tf
 	now := time.Now()
 
-	a := NewChapterAttempt("a", "u", "c", ids(set), now)
 	responses := map[ID][]int{
 		"q1": {1},    // correct
 		"q2": {1},    // wrong
@@ -42,11 +39,12 @@ func TestChapterAttemptSubmit(t *testing.T) {
 		"q4": {1, 1}, // correct (dup)
 		// q5 unanswered
 	}
-	if err := a.Submit(set, responses, now); err != nil {
+	a, err := NewChapterAttempt("a", "u", set, ids(set), responses, now)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Status != AttemptSubmitted || a.SubmittedAt == nil {
-		t.Fatalf("status %s", a.Status)
+	if a.ChapterID != "c" || !a.SubmittedAt.Equal(now) {
+		t.Fatalf("attempt = %+v", a)
 	}
 	if a.TotalScore != 2.5 || a.MaxScore != 5 {
 		t.Errorf("score %v/%d, want 2.5/5", a.TotalScore, a.MaxScore)
@@ -54,23 +52,27 @@ func TestChapterAttemptSubmit(t *testing.T) {
 	if got := a.Answers[4]; got.Score.Points != 0 || len(got.Selected) != 0 {
 		t.Errorf("unanswered = %+v", got)
 	}
-	if err := a.Submit(set, responses, now); !errors.Is(err, ErrConflict) {
-		t.Errorf("double submit: %v", err)
-	}
 }
 
-func TestChapterAttemptSubmitRejectsForeignAndOutOfRange(t *testing.T) {
+func TestNewChapterAttemptRejectsBadDraws(t *testing.T) {
 	t.Parallel()
-	set := readySet(t, 5)
-	a := NewChapterAttempt("a", "u", "c", ids(set), time.Now())
-	if err := a.Submit(set, map[ID][]int{"zzz": {0}}, time.Now()); err == nil {
-		t.Error("foreign question: want error")
+	set := readySet(t, 10)
+	five := ids(set)[:5]
+	tests := map[string]struct {
+		questionIDs []ID
+		responses   map[ID][]int
+	}{
+		"answer to an undrawn question": {five, map[ID][]int{"q9": {0}}},
+		"selection out of range":        {five, map[ID][]int{"q1": {7}}},
+		"question from another chapter": {append(ids(set)[:4:4], "zzz"), nil},
+		"question drawn twice":          {append(ids(set)[:4:4], "q1"), nil},
+		"count not a multiple of 5":     {ids(set)[:4], nil},
 	}
-	if err := a.Submit(set, map[ID][]int{"q1": {7}}, time.Now()); err == nil {
-		t.Error("out of range: want error")
-	}
-	if a.Status != AttemptInProgress {
-		t.Error("failed submit must not change status")
+	for name, tt := range tests {
+		var verr *ValidationError
+		if _, err := NewChapterAttempt("a", "u", set, tt.questionIDs, tt.responses, time.Now()); !errors.As(err, &verr) {
+			t.Errorf("%s: got %v, want a ValidationError", name, err)
+		}
 	}
 }
 
@@ -79,50 +81,11 @@ func TestValidateAttemptCount(t *testing.T) {
 	tests := []struct {
 		n, size int
 		ok      bool
-	}{{5, 5, true}, {10, 20, true}, {20, 20, true}, {25, 20, false}, {0, 20, false}, {7, 20, false}}
+	}{{5, 5, true}, {10, 20, true}, {20, 20, true}, {25, 20, false}, {0, 20, false}, {7, 20, false}, {50, 60, true}, {55, 60, false}}
 	for _, tt := range tests {
 		if err := ValidateAttemptCount(tt.n, tt.size); (err == nil) != tt.ok {
 			t.Errorf("ValidateAttemptCount(%d,%d) = %v", tt.n, tt.size, err)
 		}
-	}
-}
-
-func TestSelectQuestions(t *testing.T) {
-	t.Parallel()
-	set := readySet(t, 15)
-	rng := rand.New(rand.NewPCG(1, 2))
-
-	history := map[ID]QuestionStat{}
-	// q1..q10 attempted correctly, q11..q13 wrong last time, q14,q15 fresh.
-	for i, q := range set.Questions {
-		switch {
-		case i < 10:
-			history[q.ID] = QuestionStat{Attempts: 1, LastPoints: 1}
-		case i < 13:
-			history[q.ID] = QuestionStat{Attempts: 2, LastPoints: 0.5}
-		}
-	}
-	got, err := SelectQuestions(set, history, 5, rng)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []ID{"q11", "q12", "q13", "q14", "q15"}
-	sorted := slices.Clone(got)
-	slices.Sort(sorted)
-	if !slices.Equal(sorted, want) {
-		t.Errorf("got %v, want fresh+wrong %v", sorted, want)
-	}
-
-	all, err := SelectQuestions(set, nil, 15, rng)
-	if err != nil || len(all) != 15 {
-		t.Fatalf("all: %v %v", all, err)
-	}
-	slices.Sort(all)
-	if len(slices.Compact(all)) != 15 {
-		t.Error("duplicates drawn")
-	}
-	if _, err := SelectQuestions(set, nil, 20, rng); err == nil {
-		t.Error("n > size: want error")
 	}
 }
 

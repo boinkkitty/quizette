@@ -17,8 +17,8 @@ import { Route as AppHistoryRouteImport } from './routes/_app/history'
 import { Route as AppUploadRouteImport } from './routes/_app/upload'
 import { Route as AppQuizzesIndexRouteImport } from './routes/_app/quizzes/index'
 import { Route as AppQuizzesTopicIdRouteImport } from './routes/_app/quizzes/$topicId'
+import { Route as AppQuizzesRunRouteImport } from './routes/_app/quizzes/run'
 import { Route as AppTopicsTopicIdRouteImport } from './routes/_app/topics.$topicId'
-import { Route as AppAttemptsAttemptIdIndexRouteImport } from './routes/_app/attempts.$attemptId/index'
 import { Route as AppAttemptsAttemptIdResultsRouteImport } from './routes/_app/attempts.$attemptId/results'
 import { Route as AppChaptersChapterIdIndexRouteImport } from './routes/_app/chapters.$chapterId/index'
 import { Route as AppChaptersChapterIdQuestionsRouteImport } from './routes/_app/chapters.$chapterId/questions'
@@ -62,17 +62,16 @@ const AppQuizzesTopicIdRoute = AppQuizzesTopicIdRouteImport.update({
   path: '/quizzes/$topicId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppQuizzesRunRoute = AppQuizzesRunRouteImport.update({
+  id: '/quizzes/run',
+  path: '/quizzes/run',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTopicsTopicIdRoute = AppTopicsTopicIdRouteImport.update({
   id: '/topics/$topicId',
   path: '/topics/$topicId',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAttemptsAttemptIdIndexRoute =
-  AppAttemptsAttemptIdIndexRouteImport.update({
-    id: '/attempts/$attemptId/',
-    path: '/attempts/$attemptId/',
-    getParentRoute: () => AppRoute,
-  } as any)
 const AppAttemptsAttemptIdResultsRoute =
   AppAttemptsAttemptIdResultsRouteImport.update({
     id: '/attempts/$attemptId/results',
@@ -99,11 +98,11 @@ export interface FileRoutesByFullPath {
   '/history': typeof AppHistoryRoute
   '/upload': typeof AppUploadRoute
   '/quizzes/$topicId': typeof AppQuizzesTopicIdRoute
+  '/quizzes/run': typeof AppQuizzesRunRoute
   '/topics/$topicId': typeof AppTopicsTopicIdRoute
   '/quizzes/': typeof AppQuizzesIndexRoute
   '/attempts/$attemptId/results': typeof AppAttemptsAttemptIdResultsRoute
   '/chapters/$chapterId/questions': typeof AppChaptersChapterIdQuestionsRoute
-  '/attempts/$attemptId/': typeof AppAttemptsAttemptIdIndexRoute
   '/chapters/$chapterId/': typeof AppChaptersChapterIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -113,11 +112,11 @@ export interface FileRoutesByTo {
   '/upload': typeof AppUploadRoute
   '/': typeof AppIndexRoute
   '/quizzes/$topicId': typeof AppQuizzesTopicIdRoute
+  '/quizzes/run': typeof AppQuizzesRunRoute
   '/topics/$topicId': typeof AppTopicsTopicIdRoute
   '/quizzes': typeof AppQuizzesIndexRoute
   '/attempts/$attemptId/results': typeof AppAttemptsAttemptIdResultsRoute
   '/chapters/$chapterId/questions': typeof AppChaptersChapterIdQuestionsRoute
-  '/attempts/$attemptId': typeof AppAttemptsAttemptIdIndexRoute
   '/chapters/$chapterId': typeof AppChaptersChapterIdIndexRoute
 }
 export interface FileRoutesById {
@@ -129,11 +128,11 @@ export interface FileRoutesById {
   '/_app/upload': typeof AppUploadRoute
   '/_app/': typeof AppIndexRoute
   '/_app/quizzes/$topicId': typeof AppQuizzesTopicIdRoute
+  '/_app/quizzes/run': typeof AppQuizzesRunRoute
   '/_app/topics/$topicId': typeof AppTopicsTopicIdRoute
   '/_app/quizzes/': typeof AppQuizzesIndexRoute
   '/_app/attempts/$attemptId/results': typeof AppAttemptsAttemptIdResultsRoute
   '/_app/chapters/$chapterId/questions': typeof AppChaptersChapterIdQuestionsRoute
-  '/_app/attempts/$attemptId/': typeof AppAttemptsAttemptIdIndexRoute
   '/_app/chapters/$chapterId/': typeof AppChaptersChapterIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -145,11 +144,11 @@ export interface FileRouteTypes {
     | '/history'
     | '/upload'
     | '/quizzes/$topicId'
+    | '/quizzes/run'
     | '/topics/$topicId'
     | '/quizzes/'
     | '/attempts/$attemptId/results'
     | '/chapters/$chapterId/questions'
-    | '/attempts/$attemptId/'
     | '/chapters/$chapterId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -159,11 +158,11 @@ export interface FileRouteTypes {
     | '/upload'
     | '/'
     | '/quizzes/$topicId'
+    | '/quizzes/run'
     | '/topics/$topicId'
     | '/quizzes'
     | '/attempts/$attemptId/results'
     | '/chapters/$chapterId/questions'
-    | '/attempts/$attemptId'
     | '/chapters/$chapterId'
   id:
     | '__root__'
@@ -174,11 +173,11 @@ export interface FileRouteTypes {
     | '/_app/upload'
     | '/_app/'
     | '/_app/quizzes/$topicId'
+    | '/_app/quizzes/run'
     | '/_app/topics/$topicId'
     | '/_app/quizzes/'
     | '/_app/attempts/$attemptId/results'
     | '/_app/chapters/$chapterId/questions'
-    | '/_app/attempts/$attemptId/'
     | '/_app/chapters/$chapterId/'
   fileRoutesById: FileRoutesById
 }
@@ -246,18 +245,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppQuizzesTopicIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/quizzes/run': {
+      id: '/_app/quizzes/run'
+      path: '/quizzes/run'
+      fullPath: '/quizzes/run'
+      preLoaderRoute: typeof AppQuizzesRunRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/topics/$topicId': {
       id: '/_app/topics/$topicId'
       path: '/topics/$topicId'
       fullPath: '/topics/$topicId'
       preLoaderRoute: typeof AppTopicsTopicIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/attempts/$attemptId/': {
-      id: '/_app/attempts/$attemptId/'
-      path: '/attempts/$attemptId'
-      fullPath: '/attempts/$attemptId/'
-      preLoaderRoute: typeof AppAttemptsAttemptIdIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/attempts/$attemptId/results': {
@@ -289,11 +288,11 @@ interface AppRouteChildren {
   AppUploadRoute: typeof AppUploadRoute
   AppIndexRoute: typeof AppIndexRoute
   AppQuizzesTopicIdRoute: typeof AppQuizzesTopicIdRoute
+  AppQuizzesRunRoute: typeof AppQuizzesRunRoute
   AppTopicsTopicIdRoute: typeof AppTopicsTopicIdRoute
   AppQuizzesIndexRoute: typeof AppQuizzesIndexRoute
   AppAttemptsAttemptIdResultsRoute: typeof AppAttemptsAttemptIdResultsRoute
   AppChaptersChapterIdQuestionsRoute: typeof AppChaptersChapterIdQuestionsRoute
-  AppAttemptsAttemptIdIndexRoute: typeof AppAttemptsAttemptIdIndexRoute
   AppChaptersChapterIdIndexRoute: typeof AppChaptersChapterIdIndexRoute
 }
 
@@ -302,11 +301,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppUploadRoute: AppUploadRoute,
   AppIndexRoute: AppIndexRoute,
   AppQuizzesTopicIdRoute: AppQuizzesTopicIdRoute,
+  AppQuizzesRunRoute: AppQuizzesRunRoute,
   AppTopicsTopicIdRoute: AppTopicsTopicIdRoute,
   AppQuizzesIndexRoute: AppQuizzesIndexRoute,
   AppAttemptsAttemptIdResultsRoute: AppAttemptsAttemptIdResultsRoute,
   AppChaptersChapterIdQuestionsRoute: AppChaptersChapterIdQuestionsRoute,
-  AppAttemptsAttemptIdIndexRoute: AppAttemptsAttemptIdIndexRoute,
   AppChaptersChapterIdIndexRoute: AppChaptersChapterIdIndexRoute,
 }
 

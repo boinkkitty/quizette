@@ -80,11 +80,12 @@ func NewRouter(cfg Config) (http.Handler, error) {
 			r.Delete("/chapters/{id}", s.deleteChapter)
 			r.Get("/chapters/{id}/question-set", s.getQuestionSet)
 			r.Get("/chapters/{id}/attempts", s.listAttempts)
-			r.Post("/chapters/{id}/attempts", s.startAttempt)
+
+			r.Post("/quizzes/draw", s.drawQuiz)
 
 			r.Get("/attempts", s.listAllAttempts)
+			r.Post("/attempts", s.submitQuiz)
 			r.Get("/attempts/{id}", s.getAttempt)
-			r.Post("/attempts/{id}/submit", s.submitAttempt)
 		})
 		r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusNotFound, errorBody{Error: "not_found", Message: "no such endpoint"})

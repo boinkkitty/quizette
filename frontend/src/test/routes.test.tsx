@@ -5,7 +5,16 @@ import { describe, expect, it } from 'vitest'
 
 import type { Attempt } from '../api/schemas'
 import { renderApp } from './app'
-import { attempt, chapterSummary, historyItem, server, unauthorized, user } from './server'
+import {
+  attempt,
+  chapter,
+  chapterSummary,
+  drawnQuiz,
+  historyItem,
+  server,
+  unauthorized,
+  user,
+} from './server'
 
 describe('routing', () => {
   it('redirects logged-out users to login, preserving the destination', async () => {
@@ -70,65 +79,163 @@ describe('routing', () => {
     await u.click(screen.getByRole('button', { name: 'Log in' }))
     expect(await screen.findByText('invalid email or password')).toBeInTheDocument()
   })
+})
 
-  it('takes a quiz and shows partial MRQ credit on the results page', async () => {
-    const submitted: Attempt = attempt({
-      status: 'submitted',
-      totalScore: 2.5,
-      scorePct: 50,
-      submittedAt: '2026-11-20T10:05:00Z',
-      questions: attempt().questions.map((q) => ({
-        ...q,
-        correct: q.type === 'mrq' ? [0, 2] : [q.type === 'mcq' ? 1 : 0],
-        explanation: 'Because.',
-      })),
-      answers: [
-        { questionId: 'q1', selected: [1], points: 1, correct: true },
-        { questionId: 'q2', selected: [1], points: 0, correct: false },
-        { questionId: 'q3', selected: [0], points: 0.5, correct: false },
-      ],
-    })
-    let current = attempt()
-    let body: unknown
+describe('quiz runner', () => {
+  const submitted: Attempt = attempt({
+    totalScore: 2.5,
+    scorePct: 50,
+    questions: attempt().questions.map((q) => ({
+      ...q,
+      correct: q.type === 'mrq' ? [0, 2] : [q.type === 'mcq' ? 1 : 0],
+      explanation: 'Because.',
+    })),
+    answers: [
+      { questionId: 'q1', selected: [1], points: 1, correct: true },
+      { questionId: 'q2', selected: [1], points: 0, correct: false },
+      { questionId: 'q3', selected: [0], points: 0.5, correct: false },
+    ],
+  })
+
+  /** Serves the chapter page and the draw; returns the draw requests' bodies. */
+  function serveChapter() {
+    const draws: unknown[] = []
     server.use(
-      http.get('/api/attempts/a1', () => HttpResponse.json(current)),
-      http.post('/api/attempts/a1/submit', async ({ request }) => {
-        body = await request.json()
-        current = submitted
-        return HttpResponse.json(submitted)
-      }),
+      http.get('/api/chapters/c1', () => HttpResponse.json(chapter())),
       http.get('/api/chapters/c1/attempts', () => HttpResponse.json([])),
+      http.post('/api/quizzes/draw', async ({ request }) => {
+        draws.push(await request.json())
+        return HttpResponse.json(drawnQuiz())
+      }),
+      http.get('/api/attempts/a1', () => HttpResponse.json(submitted)),
+    )
+    return draws
+  }
+
+  it('starts from the chapter page, survives a reload, and submits to the results', async () => {
+    const draws = serveChapter()
+    const submits: unknown[] = []
+    server.use(
+      http.post('/api/attempts', async ({ request }) => {
+        submits.push(await request.json())
+        return HttpResponse.json(submitted, { status: 201 })
+      }),
     )
     const u = userEvent.setup()
-    const { router } = renderApp('/attempts/a1')
+    const first = renderApp('/chapters/c1')
+    await u.selectOptions(await screen.findByLabelText('Number of questions'), '5')
+    await u.click(screen.getByRole('button', { name: 'Start quiz' }))
+    await waitFor(() => expect(first.router.state.location.pathname).toBe('/quizzes/run'))
+    expect(draws).toEqual([{ chapterId: 'c1', count: 5 }])
+    expect(await screen.findByRole('heading', { name: 'Cells' })).toBeInTheDocument()
+
     await u.click(await screen.findByRole('radio', { name: 'Mitochondria' }))
     await u.click(screen.getByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('radio', { name: 'False' }))
+    first.unmount() // the page reloads
+
+    const { router } = renderApp('/quizzes/run')
+    expect(await screen.findByText('Question 2 of 3')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'False' })).toBeChecked()
+    await u.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('radio', { name: 'Mitochondria' })).toBeChecked()
+    await u.click(screen.getByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('checkbox', { name: 'Nucleus' }))
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
 
     expect(await screen.findByTestId('score')).toHaveTextContent('2.5 / 5')
-    expect(window.sessionStorage.getItem('quizette:quiz-progress:a1')).toBeNull() // saved progress cleared once submitted
     expect(router.state.location.pathname).toBe('/attempts/a1/results')
     expect(screen.getByText('0.5 / 1 point')).toBeInTheDocument()
-    expect(body).toEqual({
-      answers: [
-        { questionId: 'q1', selected: [1] },
-        { questionId: 'q2', selected: [1] },
-        { questionId: 'q3', selected: [0] },
-      ],
-    })
+    expect(submits).toEqual([
+      {
+        chapterId: 'c1',
+        questionIds: ['q1', 'q2', 'q3'],
+        answers: [
+          { questionId: 'q1', selected: [1] },
+          { questionId: 'q2', selected: [1] },
+          { questionId: 'q3', selected: [0] },
+        ],
+      },
+    ])
+    expect(window.sessionStorage.length).toBe(0) // the slot is cleared once submitted
   })
 
-  it('redirects a submitted attempt to its results', async () => {
-    server.use(
-      http.get('/api/attempts/a1', () =>
-        HttpResponse.json(attempt({ status: 'submitted', submittedAt: '2026-11-20T10:05:00Z' })),
-      ),
-    )
-    const { router } = renderApp('/attempts/a1')
+  it('replaces the runner with the results in the history', async () => {
+    serveChapter()
+    server.use(http.post('/api/attempts', () => HttpResponse.json(submitted, { status: 201 })))
+    const u = userEvent.setup()
+    const { router } = renderApp('/chapters/c1')
+    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    await u.click(await screen.findByRole('button', { name: 'Next' }))
+    await u.click(screen.getByRole('button', { name: 'Next' }))
+    await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
+    await u.click(await screen.findByRole('button', { name: 'Submit anyway' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
+
+    router.history.back()
+    await waitFor(() => expect(router.state.location.pathname).toBe('/chapters/c1'))
+  })
+
+  it('sends an empty tab to the quizzes page', async () => {
+    const { router } = renderApp('/quizzes/run')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/quizzes'))
+  })
+
+  it('quits after confirming without recording anything', async () => {
+    serveChapter()
+    let recorded = false
+    server.use(
+      http.post('/api/attempts', () => {
+        recorded = true
+        return HttpResponse.json({}, { status: 500 })
+      }),
+    )
+    const u = userEvent.setup()
+    const { router } = renderApp('/chapters/c1')
+    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    await u.click(await screen.findByRole('radio', { name: 'Mitochondria' }))
+
+    await u.click(screen.getByRole('button', { name: 'Quit' }))
+    expect(screen.getByText("Your answers won't be saved.")).toBeInTheDocument()
+    await u.click(screen.getByRole('button', { name: 'Keep answering' }))
+    expect(screen.getByRole('radio', { name: 'Mitochondria' })).toBeChecked()
+
+    await u.click(screen.getByRole('button', { name: 'Quit' }))
+    await u.click(screen.getByRole('button', { name: 'Quit quiz' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/quizzes'))
+    expect(router.state.location.search).toEqual({ chapterId: 'c1' })
+    expect(window.sessionStorage.length).toBe(0)
+    expect(recorded).toBe(false)
+  })
+
+  it('keeps the answers when submitting fails, and can retry', async () => {
+    serveChapter()
+    let calls = 0
+    server.use(
+      http.post('/api/attempts', () => {
+        calls++
+        return calls === 1 ? HttpResponse.error() : HttpResponse.json(submitted, { status: 201 })
+      }),
+    )
+    const u = userEvent.setup()
+    const { router } = renderApp('/chapters/c1')
+    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    for (const name of ['Mitochondria', 'False']) {
+      await u.click(await screen.findByRole('radio', { name }))
+      await u.click(screen.getByRole('button', { name: 'Next' }))
+    }
+    await u.click(screen.getByRole('checkbox', { name: 'Nucleus' }))
+    await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
+
+    expect(await screen.findByText('Could not submit')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/quizzes/run')
+    expect(screen.getByRole('checkbox', { name: 'Nucleus' })).toBeChecked()
+    expect(window.sessionStorage.length).toBe(1)
+
+    await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
+    expect(calls).toBe(2)
   })
 })
 
@@ -350,19 +457,11 @@ describe('view questions', () => {
 })
 
 describe('history page', () => {
-  it('lists attempts across chapters with review and resume links', async () => {
+  it('lists attempts across chapters with review links', async () => {
     server.use(
       http.get('/api/attempts', () =>
         HttpResponse.json([
-          historyItem({
-            id: 'a2',
-            status: 'in_progress',
-            totalScore: 0,
-            scorePct: 0,
-            submittedAt: null,
-            chapterTitle: 'Rome',
-            topicName: 'History',
-          }),
+          historyItem({ id: 'a2', chapterTitle: 'Rome', topicName: 'History' }),
           historyItem(),
         ]),
       ),
@@ -370,20 +469,17 @@ describe('history page', () => {
     renderApp('/history')
     const rows = (await screen.findAllByRole('row')).slice(1)
     expect(rows).toHaveLength(2)
-    const [inProgress, done] = rows
-    if (inProgress === undefined || done === undefined) throw new Error('missing rows')
-    expect(within(inProgress).getByText('Rome')).toBeInTheDocument()
-    expect(within(inProgress).getByText('In progress')).toBeInTheDocument()
-    expect(within(inProgress).getByRole('link', { name: 'Resume' })).toHaveAttribute(
-      'href',
-      '/attempts/a2',
-    )
-    expect(within(done).getByText('Biology')).toBeInTheDocument()
-    expect(done).toHaveTextContent('2.5 / 5 (50%)')
-    expect(within(done).getByRole('link', { name: 'Review' })).toHaveAttribute(
+    const [rome, cells] = rows
+    if (rome === undefined || cells === undefined) throw new Error('missing rows')
+    expect(within(rome).getByText('Rome')).toBeInTheDocument()
+    expect(within(cells).getByText('Biology')).toBeInTheDocument()
+    expect(cells).toHaveTextContent('2.5 / 5 (50%)')
+    expect(within(cells).getByRole('link', { name: 'Review' })).toHaveAttribute(
       'href',
       '/attempts/a1/results',
     )
+    expect(screen.queryByText('In progress')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Resume' })).not.toBeInTheDocument()
   })
 })
 

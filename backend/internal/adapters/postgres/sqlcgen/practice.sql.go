@@ -12,7 +12,7 @@ import (
 
 const createAttempt = `-- name: CreateAttempt :exec
 
-INSERT INTO chapter_attempts (id, owner_id, chapter_id, requested_count, question_ids, status, total_score, max_score, started_at)
+INSERT INTO chapter_attempts (id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
@@ -22,10 +22,10 @@ type CreateAttemptParams struct {
 	ChapterID      string
 	RequestedCount int32
 	QuestionIds    []string
-	Status         string
 	TotalScore     float64
 	MaxScore       int32
 	StartedAt      time.Time
+	SubmittedAt    time.Time
 }
 
 // Chapter attempts (quizzes) and their graded answers.
@@ -36,26 +36,16 @@ func (q *Queries) CreateAttempt(ctx context.Context, arg CreateAttemptParams) er
 		arg.ChapterID,
 		arg.RequestedCount,
 		arg.QuestionIds,
-		arg.Status,
 		arg.TotalScore,
 		arg.MaxScore,
 		arg.StartedAt,
+		arg.SubmittedAt,
 	)
 	return err
 }
 
-const deleteAnswers = `-- name: DeleteAnswers :exec
-DELETE FROM chapter_attempt_answers WHERE attempt_id = $1
-`
-
-// Answers are replaced as a whole when an attempt is saved.
-func (q *Queries) DeleteAnswers(ctx context.Context, attemptID string) error {
-	_, err := q.db.Exec(ctx, deleteAnswers, attemptID)
-	return err
-}
-
 const getAttempt = `-- name: GetAttempt :one
-SELECT id, owner_id, chapter_id, requested_count, question_ids, status, total_score, max_score, started_at, submitted_at FROM chapter_attempts WHERE owner_id = $1 AND id = $2
+SELECT id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at FROM chapter_attempts WHERE owner_id = $1 AND id = $2
 `
 
 type GetAttemptParams struct {
@@ -72,7 +62,6 @@ func (q *Queries) GetAttempt(ctx context.Context, arg GetAttemptParams) (Chapter
 		&i.ChapterID,
 		&i.RequestedCount,
 		&i.QuestionIds,
-		&i.Status,
 		&i.TotalScore,
 		&i.MaxScore,
 		&i.StartedAt,
@@ -139,7 +128,7 @@ func (q *Queries) ListAnswers(ctx context.Context, attemptID string) ([]ChapterA
 }
 
 const listAttemptsByChapter = `-- name: ListAttemptsByChapter :many
-SELECT id, owner_id, chapter_id, requested_count, question_ids, status, total_score, max_score, started_at, submitted_at FROM chapter_attempts WHERE owner_id = $1 AND chapter_id = $2 ORDER BY started_at DESC
+SELECT id, owner_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at FROM chapter_attempts WHERE owner_id = $1 AND chapter_id = $2 ORDER BY started_at DESC
 `
 
 type ListAttemptsByChapterParams struct {
@@ -162,7 +151,6 @@ func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByC
 			&i.ChapterID,
 			&i.RequestedCount,
 			&i.QuestionIds,
-			&i.Status,
 			&i.TotalScore,
 			&i.MaxScore,
 			&i.StartedAt,
@@ -179,7 +167,7 @@ func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByC
 }
 
 const listAttemptsByOwner = `-- name: ListAttemptsByOwner :many
-SELECT a.id, a.owner_id, a.chapter_id, a.requested_count, a.question_ids, a.status, a.total_score, a.max_score, a.started_at, a.submitted_at, c.title AS chapter_title, c.topic_id, t.name AS topic_name
+SELECT a.id, a.owner_id, a.chapter_id, a.requested_count, a.question_ids, a.total_score, a.max_score, a.started_at, a.submitted_at, c.title AS chapter_title, c.topic_id, t.name AS topic_name
 FROM chapter_attempts a
 JOIN chapters c ON c.id = a.chapter_id
 JOIN topics t ON t.id = c.topic_id
@@ -199,11 +187,10 @@ type ListAttemptsByOwnerRow struct {
 	ChapterID      string
 	RequestedCount int32
 	QuestionIds    []string
-	Status         string
 	TotalScore     float64
 	MaxScore       int32
 	StartedAt      time.Time
-	SubmittedAt    *time.Time
+	SubmittedAt    time.Time
 	ChapterTitle   string
 	TopicID        string
 	TopicName      string
@@ -225,7 +212,6 @@ func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwn
 			&i.ChapterID,
 			&i.RequestedCount,
 			&i.QuestionIds,
-			&i.Status,
 			&i.TotalScore,
 			&i.MaxScore,
 			&i.StartedAt,
@@ -242,68 +228,4 @@ func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwn
 		return nil, err
 	}
 	return items, nil
-}
-
-const questionStats = `-- name: QuestionStats :many
-SELECT ans.question_id,
-    count(*)::int AS attempts,
-    ((array_agg(ans.points ORDER BY a.submitted_at DESC))[1])::float8 AS last_points
-FROM chapter_attempt_answers ans
-JOIN chapter_attempts a ON a.id = ans.attempt_id
-WHERE a.owner_id = $1 AND a.chapter_id = $2 AND a.status = 'submitted'
-GROUP BY ans.question_id
-`
-
-type QuestionStatsParams struct {
-	OwnerID   string
-	ChapterID string
-}
-
-type QuestionStatsRow struct {
-	QuestionID string
-	Attempts   int32
-	LastPoints float64
-}
-
-// Per-question history for SelectQuestions: how often each question was answered and the
-// points from the most recent submitted answer ("previously wrong" = last_points < 1).
-func (q *Queries) QuestionStats(ctx context.Context, arg QuestionStatsParams) ([]QuestionStatsRow, error) {
-	rows, err := q.db.Query(ctx, questionStats, arg.OwnerID, arg.ChapterID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []QuestionStatsRow{}
-	for rows.Next() {
-		var i QuestionStatsRow
-		if err := rows.Scan(&i.QuestionID, &i.Attempts, &i.LastPoints); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const submitAttempt = `-- name: SubmitAttempt :execrows
-UPDATE chapter_attempts SET status = 'submitted', total_score = $2, submitted_at = $3
-WHERE id = $1 AND status = 'in_progress'
-`
-
-type SubmitAttemptParams struct {
-	ID          string
-	TotalScore  float64
-	SubmittedAt *time.Time
-}
-
-// Only an in-progress attempt can be submitted: the status condition makes concurrent
-// submissions safe, because the second one updates no row.
-func (q *Queries) SubmitAttempt(ctx context.Context, arg SubmitAttemptParams) (int64, error) {
-	result, err := q.db.Exec(ctx, submitAttempt, arg.ID, arg.TotalScore, arg.SubmittedAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
