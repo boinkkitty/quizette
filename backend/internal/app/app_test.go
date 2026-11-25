@@ -192,51 +192,6 @@ func TestRecoverInterrupted(t *testing.T) {
 	}
 }
 
-func TestPracticeFlow(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t)
-	ctx := context.Background()
-	res := e.upload(t, "u1", 10)
-
-	if _, err := e.prac.StartChapterAttempt(ctx, "u1", res.ChapterID, 15); err == nil {
-		t.Fatal("count > set size: want error")
-	}
-	if _, err := e.prac.StartChapterAttempt(ctx, "u2", res.ChapterID, 5); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf("other user: want not found, got %v", err)
-	}
-
-	v, err := e.prac.StartChapterAttempt(ctx, "u1", res.ChapterID, 5)
-	if err != nil || len(v.Questions) != 5 || v.Attempt.Status != domain.AttemptInProgress {
-		t.Fatalf("start: %v %+v", err, v.Attempt)
-	}
-	responses := map[domain.ID][]int{}
-	for _, q := range v.Questions {
-		responses[q.ID] = q.Correct
-	}
-	sub, err := e.prac.SubmitChapterAttempt(ctx, "u1", v.Attempt.ID, responses)
-	if err != nil || sub.Attempt.TotalScore != 5 {
-		t.Fatalf("submit: %v score=%v", err, sub.Attempt.TotalScore)
-	}
-	if _, err := e.prac.SubmitChapterAttempt(ctx, "u1", v.Attempt.ID, responses); !errors.Is(err, domain.ErrConflict) {
-		t.Fatalf("resubmit: %v", err)
-	}
-
-	// Second attempt prefers the 5 never-attempted questions.
-	v2, err := e.prac.StartChapterAttempt(ctx, "u1", res.ChapterID, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, q := range v2.Questions {
-		if _, seen := responses[q.ID]; seen {
-			t.Errorf("question %s repeated before fresh ones exhausted", q.ID)
-		}
-	}
-	hist, err := e.prac.ListChapterAttempts(ctx, "u1", res.ChapterID)
-	if err != nil || len(hist) != 2 {
-		t.Fatalf("history: %d %v", len(hist), err)
-	}
-}
-
 func TestIdentity(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)

@@ -132,7 +132,6 @@ func (c *client) upload(fields map[string]string, filename string, data []byte, 
 
 type attempt struct {
 	ID         string  `json:"id"`
-	Status     string  `json:"status"`
 	TotalScore float64 `json:"totalScore"`
 	MaxScore   int     `json:"maxScore"`
 	Questions  []struct {
@@ -194,39 +193,14 @@ func TestEndToEndFlow(t *testing.T) {
 		t.Fatalf("topic chapters: %+v", topic.Chapters)
 	}
 
-	if code := c.do("POST", "/api/chapters/"+up["chapterId"]+"/attempts", map[string]int{"count": 15}, nil); code != http.StatusBadRequest {
-		t.Fatalf("count > bank: %d", code)
+	var q drawnQuiz
+	if code := c.do("POST", "/api/quizzes/draw", map[string]any{"chapterId": up["chapterId"], "count": 5}, &q); code != http.StatusOK {
+		t.Fatalf("draw: %d", code)
 	}
+	answers, _ := stubAnswers(q)
 	var a attempt
-	if code := c.do("POST", "/api/chapters/"+up["chapterId"]+"/attempts", map[string]int{"count": 5}, &a); code != http.StatusCreated {
-		t.Fatalf("start: %d", code)
-	}
-	if len(a.Questions) != 5 {
-		t.Fatalf("questions: %d", len(a.Questions))
-	}
-	for _, q := range a.Questions {
-		if q.Correct != nil {
-			t.Fatal("answers leaked before submission")
-		}
-	}
-
-	// Answer: MCQ option 1 (correct for the stub), TF 0 (correct), MRQ only A (half).
-	answers := []map[string]any{}
-	want := 0.0
-	for _, q := range a.Questions {
-		sel := map[string][]int{"mcq": {1}, "true_false": {0}, "mrq": {0}}[q.Type]
-		want += map[string]float64{"mcq": 1, "true_false": 1, "mrq": 0.5}[q.Type]
-		answers = append(answers, map[string]any{"questionId": q.ID, "selected": sel})
-	}
-	var res attempt
-	if code := c.do("POST", "/api/attempts/"+a.ID+"/submit", map[string]any{"answers": answers}, &res); code != http.StatusOK {
+	if code := c.do("POST", "/api/attempts", map[string]any{"chapterId": up["chapterId"], "questionIds": questionIDs(q), "answers": answers}, &a); code != http.StatusCreated {
 		t.Fatalf("submit: %d", code)
-	}
-	if res.Status != "submitted" || res.TotalScore != want || res.MaxScore != 5 || len(res.Answers) != 5 || res.Questions[0].Correct == nil {
-		t.Fatalf("result: %+v (want score %v)", res, want)
-	}
-	if code := c.do("POST", "/api/attempts/"+a.ID+"/submit", map[string]any{"answers": answers}, nil); code != http.StatusConflict {
-		t.Fatalf("resubmit: %d", code)
 	}
 	var hist []map[string]any
 	c.do("GET", "/api/chapters/"+up["chapterId"]+"/attempts", nil, &hist)

@@ -6,47 +6,65 @@ import (
 	"github.com/boinkkitty/quizette/backend/internal/domain"
 )
 
-type startAttemptRequest struct {
-	Count int `json:"count"`
-}
-
-type submitAttemptRequest struct {
-	Answers []struct {
+type submitQuizRequest struct {
+	ChapterID   string   `json:"chapterId"`
+	QuestionIDs []string `json:"questionIds"`
+	Answers     []struct {
 		QuestionID string `json:"questionId"`
 		Selected   []int  `json:"selected"`
 	} `json:"answers"`
 }
 
-func (s *Server) startAttempt(w http.ResponseWriter, r *http.Request) {
-	var req startAttemptRequest
+type drawQuizRequest struct {
+	ChapterID string `json:"chapterId"`
+	Count     int    `json:"count"`
+}
+
+// drawnQuizDTO never carries correct answers: the quiz is still being taken.
+type drawnQuizDTO struct {
+	ChapterID    string        `json:"chapterId"`
+	ChapterTitle string        `json:"chapterTitle"`
+	Questions    []questionDTO `json:"questions"`
+}
+
+func (s *Server) drawQuiz(w http.ResponseWriter, r *http.Request) {
+	var req drawQuizRequest
 	if err := decodeJSON(r, &req); err != nil {
 		s.writeError(w, r, err)
 		return
 	}
-	v, err := s.cfg.Practice.StartChapterAttempt(r.Context(), mustUser(r).ID, idParam(r), req.Count)
+	q, err := s.cfg.Practice.DrawChapterQuiz(r.Context(), mustUser(r).ID, domain.ID(req.ChapterID), req.Count)
 	if err != nil {
 		s.writeError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toAttemptDTO(v))
+	out := drawnQuizDTO{ChapterID: q.ChapterID.String(), ChapterTitle: q.ChapterTitle, Questions: make([]questionDTO, len(q.Questions))}
+	for i, dq := range q.Questions {
+		out.Questions[i] = toQuestionDTO(dq, false)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
-func (s *Server) submitAttempt(w http.ResponseWriter, r *http.Request) {
-	var req submitAttemptRequest
+func (s *Server) submitQuiz(w http.ResponseWriter, r *http.Request) {
+	var req submitQuizRequest
 	if err := decodeJSON(r, &req); err != nil {
 		s.writeError(w, r, err)
 		return
+	}
+	ids := make([]domain.ID, len(req.QuestionIDs))
+	for i, id := range req.QuestionIDs {
+		ids[i] = domain.ID(id)
 	}
 	responses := make(map[domain.ID][]int, len(req.Answers))
 	for _, a := range req.Answers {
 		responses[domain.ID(a.QuestionID)] = a.Selected
 	}
-	v, err := s.cfg.Practice.SubmitChapterAttempt(r.Context(), mustUser(r).ID, idParam(r), responses)
+	v, err := s.cfg.Practice.SubmitChapterQuiz(r.Context(), mustUser(r).ID, domain.ID(req.ChapterID), ids, responses)
 	if err != nil {
 		s.writeError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toAttemptDTO(v))
+	writeJSON(w, http.StatusCreated, toAttemptDTO(v))
 }
 
 func (s *Server) getAttempt(w http.ResponseWriter, r *http.Request) {

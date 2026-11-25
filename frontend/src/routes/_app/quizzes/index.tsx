@@ -1,13 +1,18 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { FolderIcon } from 'lucide-react'
+import { z } from 'zod'
 
 import { chaptersQuery } from '../../../api/queries'
 import type { ChapterSummary } from '../../../api/schemas'
 import { EmptyState } from '../../../components/EmptyState'
 import { PageHeader } from '../../../components/PageHeader'
 
+// chapterId is the chapter a quit quiz came from. The three-step picker will preselect it.
+const searchSchema = z.object({ chapterId: z.string().optional() })
+
 export const Route = createFileRoute('/_app/quizzes/')({
+  validateSearch: searchSchema,
   loader: ({ context }) => context.queryClient.ensureQueryData(readyChapters),
   component: QuizTopicsPage,
 })

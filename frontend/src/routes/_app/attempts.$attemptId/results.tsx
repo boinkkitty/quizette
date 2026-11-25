@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -9,10 +9,8 @@ import { PageHeader } from '../../../components/PageHeader'
 import { formatPct, formatPoints } from '../../../lib/format'
 
 export const Route = createFileRoute('/_app/attempts/$attemptId/results')({
-  loader: async ({ context, params }) => {
-    const attempt = await context.queryClient.ensureQueryData(attemptQuery(params.attemptId))
-    if (attempt.status !== 'submitted') throw redirect({ to: '/attempts/$attemptId', params })
-  },
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(attemptQuery(params.attemptId)),
   component: ResultsPage,
 })
 

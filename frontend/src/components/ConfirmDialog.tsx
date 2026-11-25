@@ -18,6 +18,7 @@ interface Props {
   title: string
   description: ReactNode
   confirmLabel: string
+  cancelLabel?: string
   destructive?: boolean
   onConfirm: () => void
 }
@@ -28,6 +29,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel = 'Cancel',
   destructive = false,
   onConfirm,
 }: Props) {
@@ -40,7 +42,7 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction variant={destructive ? 'destructive' : 'default'} onClick={onConfirm}>
             {confirmLabel}
           </AlertDialogAction>

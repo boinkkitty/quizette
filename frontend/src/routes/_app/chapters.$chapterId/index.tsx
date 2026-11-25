@@ -14,7 +14,7 @@ import {
   chapterQuery,
   questionSetQuery,
   useDeleteChapter,
-  useStartAttempt,
+  useDrawQuiz,
 } from '../../../api/queries'
 import type { Chapter } from '../../../api/schemas'
 import { ErrorMessage } from '../../../components/ErrorMessage'
@@ -27,6 +27,7 @@ import { Field } from '../../../components/Field'
 import { PageHeader } from '../../../components/PageHeader'
 import { Spinner } from '../../../components/Spinner'
 import { countOptions, formatDate, formatPct, formatPoints } from '../../../lib/format'
+import { startQuiz } from '../../../lib/quizSlot'
 
 export const Route = createFileRoute('/_app/chapters/$chapterId/')({
   loader: ({ context, params }) =>
@@ -109,7 +110,7 @@ function ChapterPage() {
 
 function ReadyChapter({ chapter }: { chapter: Chapter }) {
   const navigate = useNavigate()
-  const start = useStartAttempt(chapter.id)
+  const start = useDrawQuiz(chapter.id)
   const options = countOptions(chapter.questionCount)
   const [count, setCount] = useState(Math.min(10, chapter.questionCount))
   const [reviewing, setReviewing] = useState(false)
@@ -122,8 +123,7 @@ function ReadyChapter({ chapter }: { chapter: Chapter }) {
             <h2 className="font-semibold">Start a quiz</h2>
           </CardTitle>
           <CardDescription>
-            {chapter.questionCount} questions in this bank. Questions you haven't seen or got wrong
-            come first.
+            {chapter.questionCount} questions in this bank. Each quiz draws its questions at random.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -150,8 +150,10 @@ function ReadyChapter({ chapter }: { chapter: Chapter }) {
             disabled={start.isPending}
             onClick={() => {
               start.mutate(count, {
-                onSuccess: (a) =>
-                  void navigate({ to: '/attempts/$attemptId', params: { attemptId: a.id } }),
+                onSuccess: (quiz) => {
+                  startQuiz(quiz)
+                  void navigate({ to: '/quizzes/run' })
+                },
               })
             }}
           >
@@ -177,7 +179,7 @@ function AttemptHistory({ chapterId }: { chapterId: string }) {
   const { data, error, isPending } = useQuery(attemptsQuery(chapterId))
   if (isPending) return <Spinner />
   if (error !== null) return <ErrorMessage error={error} />
-  const attempts = data.filter((a) => a.status === 'submitted')
+  const attempts = data
   if (attempts.length === 0)
     return <EmptyState title="No attempts yet">Your quiz history will appear here.</EmptyState>
   return (
@@ -199,7 +201,7 @@ function AttemptHistory({ chapterId }: { chapterId: string }) {
         <tbody className="divide-y">
           {attempts.map((a) => (
             <tr key={a.id}>
-              <td className="px-6 py-3">{formatDate(a.submittedAt ?? a.startedAt)}</td>
+              <td className="px-6 py-3">{formatDate(a.submittedAt)}</td>
               <td className="px-6 py-3">{a.count}</td>
               <td className="px-6 py-3 font-medium">
                 {formatPoints(a.totalScore)} / {a.maxScore}{' '}

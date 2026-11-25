@@ -99,18 +99,23 @@ export const questionSetSchema = z.object({
 })
 export type QuestionSet = z.infer<typeof questionSetSchema>
 
-export const attemptStatusSchema = z.enum(['in_progress', 'submitted'])
+/** POST /api/quizzes/draw: the questions of an unfinished quiz, without correct answers. */
+export const drawnQuizSchema = z.object({
+  chapterId: z.string(),
+  chapterTitle: z.string(),
+  questions: z.array(questionSchema),
+})
+export type DrawnQuiz = z.infer<typeof drawnQuizSchema>
 
 export const attemptSummarySchema = z.object({
   id: z.string(),
   chapterId: z.string(),
-  status: attemptStatusSchema,
   count: z.number().int(),
   totalScore: z.number(),
   maxScore: z.number().int(),
   scorePct: z.number(),
   startedAt: z.string(),
-  submittedAt: z.string().nullable(),
+  submittedAt: z.string(),
 })
 export type AttemptSummary = z.infer<typeof attemptSummarySchema>
 

@@ -284,7 +284,7 @@ func toAttempt(r sqlcgen.ChapterAttempt) domain.ChapterAttempt {
 	}
 	return domain.ChapterAttempt{
 		ID: domain.ID(r.ID), OwnerID: domain.ID(r.OwnerID), ChapterID: domain.ID(r.ChapterID),
-		RequestedCount: int(r.RequestedCount), QuestionIDs: ids, Status: domain.AttemptStatus(r.Status),
+		RequestedCount: int(r.RequestedCount), QuestionIDs: ids,
 		TotalScore: r.TotalScore, MaxScore: int(r.MaxScore), StartedAt: r.StartedAt, SubmittedAt: r.SubmittedAt,
 	}
 }
@@ -294,10 +294,25 @@ func (r attemptRepo) Create(ctx context.Context, a domain.ChapterAttempt) error 
 	for i, id := range a.QuestionIDs {
 		ids[i] = string(id)
 	}
-	return mapErr("attempt", r.q.CreateAttempt(ctx, sqlcgen.CreateAttemptParams{
-		ID: string(a.ID), OwnerID: string(a.OwnerID), ChapterID: string(a.ChapterID), RequestedCount: i32(a.RequestedCount),
-		QuestionIds: ids, Status: string(a.Status), TotalScore: a.TotalScore, MaxScore: i32(a.MaxScore), StartedAt: a.StartedAt,
-	}))
+	return inTx(ctx, r.db, func(q *sqlcgen.Queries) error {
+		err := q.CreateAttempt(ctx, sqlcgen.CreateAttemptParams{
+			ID: string(a.ID), OwnerID: string(a.OwnerID), ChapterID: string(a.ChapterID), RequestedCount: i32(a.RequestedCount),
+			QuestionIds: ids, TotalScore: a.TotalScore, MaxScore: i32(a.MaxScore), StartedAt: a.StartedAt, SubmittedAt: a.SubmittedAt,
+		})
+		if err != nil {
+			return mapErr("attempt", err)
+		}
+		for _, ans := range a.Answers {
+			err := q.InsertAnswer(ctx, sqlcgen.InsertAnswerParams{
+				AttemptID: string(a.ID), QuestionID: string(ans.QuestionID), Position: i32(ans.Position),
+				Selected: ints32(ans.Selected), Points: ans.Score.Points, Correct: ans.Score.Correct,
+			})
+			if err != nil {
+				return mapErr("answer", err)
+			}
+		}
+		return nil
+	})
 }
 
 func (r attemptRepo) Get(ctx context.Context, owner, id domain.ID) (domain.ChapterAttempt, error) {
@@ -315,32 +330,6 @@ func (r attemptRepo) Get(ctx context.Context, owner, id domain.ID) (domain.Chapt
 		a.Answers[i] = domain.Answer{QuestionID: domain.ID(ans.QuestionID), Position: int(ans.Position), Selected: ints(ans.Selected), Score: domain.Score{Points: ans.Points, Correct: ans.Correct}}
 	}
 	return a, nil
-}
-
-func (r attemptRepo) SaveSubmission(ctx context.Context, a domain.ChapterAttempt) error {
-	return inTx(ctx, r.db, func(q *sqlcgen.Queries) error {
-		n, err := q.SubmitAttempt(ctx, sqlcgen.SubmitAttemptParams{ID: string(a.ID), TotalScore: a.TotalScore, SubmittedAt: a.SubmittedAt})
-		if err != nil {
-			return mapErr("attempt", err)
-		}
-		if n == 0 {
-			// Already submitted (another request got there first) or deleted meanwhile.
-			return fmt.Errorf("attempt already submitted: %w", domain.ErrConflict)
-		}
-		if err := q.DeleteAnswers(ctx, string(a.ID)); err != nil {
-			return mapErr("answers", err)
-		}
-		for _, ans := range a.Answers {
-			err := q.InsertAnswer(ctx, sqlcgen.InsertAnswerParams{
-				AttemptID: string(a.ID), QuestionID: string(ans.QuestionID), Position: i32(ans.Position),
-				Selected: ints32(ans.Selected), Points: ans.Score.Points, Correct: ans.Score.Correct,
-			})
-			if err != nil {
-				return mapErr("answer", err)
-			}
-		}
-		return nil
-	})
 }
 
 func (r attemptRepo) ListByChapter(ctx context.Context, owner, chapterID domain.ID) ([]domain.ChapterAttempt, error) {
@@ -365,24 +354,12 @@ func (r attemptRepo) ListByOwner(ctx context.Context, owner domain.ID, limit int
 		out[i] = app.AttemptSummary{
 			ChapterAttempt: toAttempt(sqlcgen.ChapterAttempt{
 				ID: row.ID, OwnerID: row.OwnerID, ChapterID: row.ChapterID, RequestedCount: row.RequestedCount, QuestionIds: row.QuestionIds,
-				Status: row.Status, TotalScore: row.TotalScore, MaxScore: row.MaxScore, StartedAt: row.StartedAt, SubmittedAt: row.SubmittedAt,
+				TotalScore: row.TotalScore, MaxScore: row.MaxScore, StartedAt: row.StartedAt, SubmittedAt: row.SubmittedAt,
 			}),
 			ChapterTitle: row.ChapterTitle,
 			TopicID:      domain.ID(row.TopicID),
 			TopicName:    row.TopicName,
 		}
-	}
-	return out, nil
-}
-
-func (r attemptRepo) QuestionStats(ctx context.Context, owner, chapterID domain.ID) (map[domain.ID]domain.QuestionStat, error) {
-	rows, err := r.q.QuestionStats(ctx, sqlcgen.QuestionStatsParams{OwnerID: string(owner), ChapterID: string(chapterID)})
-	if err != nil {
-		return nil, mapErr("question stats", err)
-	}
-	out := make(map[domain.ID]domain.QuestionStat, len(rows))
-	for _, row := range rows {
-		out[domain.ID(row.QuestionID)] = domain.QuestionStat{Attempts: int(row.Attempts), LastPoints: row.LastPoints}
 	}
 	return out, nil
 }

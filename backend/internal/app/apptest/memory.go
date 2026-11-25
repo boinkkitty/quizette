@@ -5,7 +5,6 @@ package apptest
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -221,7 +220,7 @@ func (s *Store) chapterSummaries(keep func(domain.Chapter) bool) []app.ChapterSu
 		}
 		cs := app.ChapterSummary{Chapter: c, TopicName: s.topics[c.TopicID].Name, QuestionCount: s.sets[c.ID].Size()}
 		for _, a := range s.attempts {
-			if a.ChapterID == c.ID && a.Status == domain.AttemptSubmitted {
+			if a.ChapterID == c.ID {
 				cs.AttemptCount++
 			}
 		}
@@ -367,17 +366,6 @@ func (r attemptRepo) Get(_ context.Context, owner, id domain.ID) (domain.Chapter
 	return a, nil
 }
 
-func (r attemptRepo) SaveSubmission(_ context.Context, a domain.ChapterAttempt) error {
-	r.s.mu.Lock()
-	defer r.s.mu.Unlock()
-	stored, ok := r.s.attempts[a.ID]
-	if !ok || stored.Status != domain.AttemptInProgress {
-		return fmt.Errorf("attempt already submitted: %w", domain.ErrConflict)
-	}
-	r.s.attempts[a.ID] = a
-	return nil
-}
-
 func (r attemptRepo) ListByChapter(_ context.Context, owner, chapterID domain.ID) ([]domain.ChapterAttempt, error) {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
@@ -408,21 +396,6 @@ func (r attemptRepo) ListByOwner(_ context.Context, owner domain.ID, limit int) 
 		out = out[:limit]
 	}
 	return out, nil
-}
-
-func (r attemptRepo) QuestionStats(ctx context.Context, owner, chapterID domain.ID) (map[domain.ID]domain.QuestionStat, error) {
-	attempts, _ := r.ListByChapter(ctx, owner, chapterID)
-	slices.Reverse(attempts) // oldest first so the last write wins
-	stats := map[domain.ID]domain.QuestionStat{}
-	for _, a := range attempts {
-		for _, ans := range a.Answers {
-			st := stats[ans.QuestionID]
-			st.Attempts++
-			st.LastPoints = ans.Score.Points
-			stats[ans.QuestionID] = st
-		}
-	}
-	return stats, nil
 }
 
 type userRepo struct{ s *Store }

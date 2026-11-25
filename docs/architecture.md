@@ -77,7 +77,7 @@ Topic 1 ──< Chapter 1 ── 1 QuestionSet 1 ──< Question
 - **Why QuestionSet is the root:** invariants span the **collection** — exact count equals the spec, unique positions, every question valid. Questions are created together from one LLM response and never edited individually (v1), so they share one consistency boundary.
 - **Why the factory is the anti-corruption layer:** `NewQuestionSet(chapterID, spec, drafts)` is the only way LLM output becomes domain data. The JSON schema guarantees *shape*; the factory guarantees *meaning* (MCQ/TF one answer, MRQ 3–5 options with at least 1 correct, indices in range, no duplicate options, TF options exactly True/False). Swapping LLMs can't weaken these rules.
 - **Why immutable:** attempts reference question IDs; if questions could change, past scores would silently become wrong.
-- **Why Question is an entity (has ID) and not a value object:** attempts and selection history refer to specific questions over time ("previously wrong"), which requires stable identity.
+- **Why Question is an entity (has ID) and not a value object:** attempts refer to specific questions over time, which requires stable identity.
 - **Why `Grade()` lives on Question:** grading depends only on the question's type and correct answer — behaviour next to data, no type-switching scattered across services.
 
 ### Score (value object) & MRQ grading
@@ -94,14 +94,14 @@ Topic 1 ──< Chapter 1 ── 1 QuestionSet 1 ──< Question
 Example: correct = {A,C}. Pick A,C → 1. Pick A → 0.5. Pick A,B → 0. Pick all 4 → 0.
 
 ### ChapterAttempt (aggregate root)
-- **What:** one practice run on a chapter. `ID, OwnerID, ChapterID, RequestedCount, QuestionIDs (ordered), Answers[], Status, TotalScore, MaxScore, StartedAt, SubmittedAt`.
+- **What:** one finished practice run on a chapter. `ID, OwnerID, ChapterID, RequestedCount, QuestionIDs (ordered), Answers[], TotalScore, MaxScore, StartedAt, SubmittedAt`. Created graded when the quiz is submitted; an unfinished quiz lives only in its browser tab (ADR 0011).
 - **Why its own aggregate:** many attempts per set, written by the user while the set is read-only. Putting attempts inside QuestionSet would make the immutable bank a write hotspot and grow unboundedly.
-- **Invariants:** count is a multiple of 5 and ≤ set size; submitted once; answers only for drawn questions; score derived, never client-supplied.
+- **Invariants:** count is a multiple of 5, at least 5 and ≤ min(set size, 50); drawn questions are distinct members of the chapter's set; answers only for drawn questions; score derived, never client-supplied.
 - **Snapshot of `QuestionIDs`:** history shows exactly what was asked, in what order, even though selection is randomised.
 - **Name:** "ChapterAttempt" because the attempt is always scoped to one chapter's set; "Quiz" is the UI word only (in GLOSSARY as a synonym to avoid in code).
 
-### SelectQuestions (domain service)
-- Needs the QuestionSet *and* attempt history — belongs to neither aggregate, so it's a stateless domain service. Priority: never attempted → previously wrong → random.
+### DrawQuestions (domain service)
+- Draws N distinct questions from a QuestionSet at random after checking the count rule (ADR 0010). Stateless: the draw is returned to the client and not stored until the quiz is submitted (ADR 0011).
 
 ### User / Session (Identity — not rich aggregates)
 - Plain entities behind repositories; rules are mostly crypto/protocol (bcrypt, OAuth state/PKCE), not domain behaviour.
@@ -121,7 +121,7 @@ Example: correct = {A,C}. Pick A,C → 1. Pick A → 0.5. Pick A,B → 0. Pick a
 | `question_sets` | `chapter_id UNIQUE` enforces 1:1 today; dropping the constraint later enables versioned regeneration. |
 | `questions` | `options jsonb` (ordered list, always read/written with the question, never queried alone — a child table adds joins for nothing); `correct int[]` = indices into options; `position` for stable order. |
 | `chapter_attempts` | `question_ids uuid[]` snapshot of draw order; index `(owner_id, chapter_id, started_at desc)` for history. |
-| `chapter_attempt_answers` | Real table (not jsonb) because selection queries "which questions has this user got wrong?" by `question_id` → indexed `(question_id)` via attempt join. `points numeric(5,4)` for MRQ fractions. |
+| `chapter_attempt_answers` | Real table (not jsonb), indexed `(question_id)`. `points numeric(5,4)` for MRQ fractions. |
 
 Cross-cutting:
 - **UUIDv7** IDs generated in the app (`IDGenerator` port) → domain objects have identity before persistence; time-ordered for index locality.
@@ -144,7 +144,7 @@ client polls GET /api/jobs/:id
 
 ## 8. Implementation notes
 
-- **Exported fields, guarded transitions.** Aggregates use exported fields (idiomatic Go, simple mapping in the Postgres adapter), but state changes go through methods (`ProcessingJob.Start/Succeed/Fail`, `Chapter.MarkReady/MarkFailed`, `ChapterAttempt.Submit`) that enforce the state machines.
+- **Exported fields, guarded transitions.** Aggregates use exported fields (idiomatic Go, simple mapping in the Postgres adapter), but state changes go through methods (`ProcessingJob.Start/Succeed/Fail`, `Chapter.MarkReady/MarkFailed`) that enforce the state machines, and `NewChapterAttempt` only builds an attempt that is already graded.
 - **Lenient anti-corruption.** `NewQuestionSet` discards invalid LLM drafts and succeeds if at least `spec.Count` valid ones remain; only if too few are valid does the job retry once with the violations fed back into the prompt.
 - **Uploads never touch disk.** The HTTP adapter streams multipart parts into memory instead of using `ParseMultipartForm` (which spills large files to temp files). A schema test asserts there is no `bytea` column anywhere.
 - **Neon / PgBouncer.** The pool uses `QueryExecModeExec` (no server-side prepared statements). In this mode pgx cannot infer parameter types, so `jsonb` is mapped to Go `string` (a `[]byte` would be sent as `bytea`).
