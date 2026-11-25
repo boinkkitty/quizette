@@ -3,6 +3,8 @@ package http
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -19,13 +21,17 @@ type Config struct {
 	Generation *app.GenerationService
 	Practice   *app.PracticeService
 	Logger     *slog.Logger
-	// PublicURL is the browser-facing origin (the Cloudflare Worker), used
-	// for OAuth redirects back into the SPA.
+	// PublicURL is the browser-facing origin (this server in production, the
+	// Vite dev server locally), used for OAuth redirects back into the SPA.
 	PublicURL string
 	// SecureCookies sets the Secure flag (true everywhere except local http).
 	SecureCookies bool
 	// Ready reports dependency health for /readyz.
 	Ready func(ctx context.Context) error
+	// Web is the built frontend, served for every path outside /api. It must
+	// contain index.html. Nil serves the API only (local development, where
+	// the Vite dev server serves the frontend).
+	Web fs.FS
 }
 
 // Server holds handler dependencies.
@@ -34,11 +40,11 @@ type Server struct {
 	log *slog.Logger
 }
 
-// NewRouter builds the API router.
-func NewRouter(cfg Config) http.Handler {
+// NewRouter builds the router for the API and, when cfg.Web is set, the frontend.
+func NewRouter(cfg Config) (http.Handler, error) {
 	s := &Server{cfg: cfg, log: cfg.Logger}
 	r := chi.NewRouter()
-	r.Use(s.requestID, s.logRequests, s.recoverPanics, s.authenticate)
+	r.Use(s.requestID, s.logRequests, s.recoverPanics)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -47,7 +53,7 @@ func NewRouter(cfg Config) http.Handler {
 
 	r.Route("/api", func(r chi.Router) {
 		// Every API route is cookie-authenticated, so all of them need the CSRF guard.
-		r.Use(s.csrfGuard)
+		r.Use(s.authenticate, s.csrfGuard)
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/signup", s.signUp)
 			r.Post("/login", s.logIn)
@@ -84,7 +90,16 @@ func NewRouter(cfg Config) http.Handler {
 			writeJSON(w, http.StatusNotFound, errorBody{Error: "not_found", Message: "no such endpoint"})
 		})
 	})
-	return r
+
+	if cfg.Web != nil {
+		app, err := newSPA(cfg.Web)
+		if err != nil {
+			return nil, fmt.Errorf("frontend: %w", err)
+		}
+		r.Get("/*", app.ServeHTTP)
+		r.Head("/*", app.ServeHTTP)
+	}
+	return r, nil
 }
 
 func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {

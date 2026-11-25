@@ -1,6 +1,6 @@
 # 4. Same-origin API through a Cloudflare Worker proxy
 
-Status: accepted (2026-11-20). The session/CSRF paragraph was briefly superseded by ADR 0006 and is back in force per [ADR 0007](0007-revert-to-opaque-session-cookies.md).
+Status: accepted (2026-11-20). The session/CSRF paragraph was briefly superseded by ADR 0006 and is back in force per [ADR 0007](0007-revert-to-opaque-session-cookies.md). The Worker proxy itself is superseded by [ADR 0009](0009-single-binary-on-render.md); the session/CSRF design still applies.
 
 ## Context
 Frontend on Cloudflare (`*.workers.dev`), API on Render (`*.onrender.com`). Cross-site session cookies are blocked by modern browsers' third-party-cookie rules, and CORS adds complexity.

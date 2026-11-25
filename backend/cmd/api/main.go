@@ -26,6 +26,7 @@ import (
 	"github.com/boinkkitty/quizette/backend/internal/app"
 	"github.com/boinkkitty/quizette/backend/internal/config"
 	"github.com/boinkkitty/quizette/backend/internal/platform/logging"
+	"github.com/boinkkitty/quizette/backend/web"
 )
 
 func main() {
@@ -82,11 +83,18 @@ func run() error {
 	identity := &app.IdentityService{Deps: deps, Hasher: system.Bcrypt{}, Providers: oauthProviders(cfg)}
 	go purgeSessions(ctx, identity, logger)
 
-	handler := qhttp.NewRouter(qhttp.Config{
+	frontend, hasFrontend := web.Dist()
+	if !hasFrontend {
+		logger.InfoContext(ctx, "http.no_frontend", slog.String("hint", "built without frontend/dist; serving the API only"))
+	}
+	handler, err := qhttp.NewRouter(qhttp.Config{
 		Identity: identity, Library: &app.LibraryService{Deps: deps}, Generation: genSvc, Practice: &app.PracticeService{Deps: deps},
 		Logger: logger, PublicURL: cfg.PublicURL, SecureCookies: cfg.Production(),
-		Ready: pool.Ping,
+		Ready: pool.Ping, Web: frontend,
 	})
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           handler,

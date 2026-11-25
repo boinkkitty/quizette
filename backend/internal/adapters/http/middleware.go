@@ -96,7 +96,7 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 				attrs = append(attrs, slog.Any("error", holder.err))
 			}
 		}
-		if route == "/healthz" {
+		if route == "/healthz" || route == "/*" { // health checks and frontend files
 			level = slog.LevelDebug
 		}
 		logctx.From(r.Context(), s.log).LogAttrs(r.Context(), level, "http.request", attrs...)
