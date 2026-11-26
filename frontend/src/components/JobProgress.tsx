@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleAlertIcon, CircleCheckIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,7 +15,19 @@ const stepText = {
   running: 'Reading your PDF and writing questions…',
 } as const
 
-export function JobProgress({ jobId, chapterId }: { jobId: string; chapterId: string }) {
+/**
+ * JobProgress polls a processing job until it finishes. Once it succeeds it shows ready,
+ * or by default a link to the chapter.
+ */
+export function JobProgress({
+  jobId,
+  chapterId,
+  ready,
+}: {
+  jobId: string
+  chapterId: string
+  ready?: ReactNode
+}) {
   const { data: job, error } = useQuery(jobQuery(jobId))
   if (error !== null) return <ErrorMessage error={error} />
   if (job === undefined) return <Spinner />
@@ -49,9 +62,11 @@ export function JobProgress({ jobId, chapterId }: { jobId: string; chapterId: st
           <CircleCheckIcon />
           <AlertTitle>Your question bank is ready</AlertTitle>
           <AlertDescription>
-            <Link to="/chapters/$chapterId" params={{ chapterId }} className="font-medium">
-              Go to chapter →
-            </Link>
+            {ready ?? (
+              <Link to="/chapters/$chapterId" params={{ chapterId }} className="font-medium">
+                Go to chapter →
+              </Link>
+            )}
           </AlertDescription>
         </Alert>
       )

@@ -75,7 +75,14 @@ export function saveQuizProgress(progress: QuizProgress): void {
  */
 export function clearQuizFrom(chapterIds: readonly string[]): void {
   const stored = read()
-  if (stored !== null && chapterIds.includes(stored.quiz.chapterId)) clearQuiz()
+  if (stored === null) return
+  const { quiz } = stored
+  // A whole-topic quiz has no chapter of its own; each question names the one it came from.
+  const drewFrom =
+    quiz.scope === 'chapter'
+      ? chapterIds.includes(quiz.chapterId)
+      : quiz.questions.some((q) => q.chapterId !== undefined && chapterIds.includes(q.chapterId))
+  if (drewFrom) clearQuiz()
 }
 
 export function clearQuiz(): void {

@@ -1,11 +1,11 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 
-import { topicsQuery, useUpload } from '../../api/queries'
+import { jobQuery, topicsQuery, useUpload } from '../../api/queries'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { JobProgress } from '../../components/JobProgress'
 import { PageHeader } from '../../components/PageHeader'
@@ -43,13 +43,55 @@ function UploadPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          <JobProgress jobId={upload.data.jobId} chapterId={upload.data.chapterId} />
-          <Button variant="outline" size="lg" onClick={() => upload.reset()}>
-            Upload another PDF
-          </Button>
-        </div>
+        <UploadStatus
+          jobId={upload.data.jobId}
+          chapterId={upload.data.chapterId}
+          onReset={() => upload.reset()}
+        />
       )}
+    </div>
+  )
+}
+
+/** The upload's progress; once ready, what to do next, quizzing it first. */
+function UploadStatus({
+  jobId,
+  chapterId,
+  onReset,
+}: {
+  jobId: string
+  chapterId: string
+  onReset: () => void
+}) {
+  // Shares JobProgress's polling query, so this adds no requests.
+  const { data: job } = useQuery(jobQuery(jobId))
+  const another = (
+    <Button variant="outline" size="lg" onClick={onReset}>
+      Upload another PDF
+    </Button>
+  )
+  return (
+    <div className="space-y-4">
+      <JobProgress
+        jobId={jobId}
+        chapterId={chapterId}
+        ready={
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="lg" asChild>
+              <Link to="/quizzes" search={{ chapterId }}>
+                Quiz this chapter
+              </Link>
+            </Button>
+            <Button variant="outline" size="lg" asChild>
+              <Link to="/chapters/$chapterId" params={{ chapterId }}>
+                Go to chapter
+              </Link>
+            </Button>
+            {another}
+          </div>
+        }
+      />
+      {job?.status !== 'succeeded' && another}
     </div>
   )
 }

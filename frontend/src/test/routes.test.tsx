@@ -1,11 +1,21 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 
 import type { Attempt } from '../api/schemas'
+import { startQuiz } from '../lib/quizSlot'
 import { renderApp } from './app'
-import { attempt, chapter, drawnQuiz, historyItem, server, unauthorized, user } from './server'
+import {
+  attempt,
+  chapterSummary,
+  drawnQuiz,
+  historyItem,
+  server,
+  topicQuiz,
+  unauthorized,
+  user,
+} from './server'
 
 describe('routing', () => {
   it('redirects logged-out users to login, preserving the destination', async () => {
@@ -88,12 +98,11 @@ describe('quiz runner', () => {
     ],
   })
 
-  /** Serves the chapter page and the draw; returns the draw requests' bodies. */
+  /** Serves the quiz picker's chapters and the draw; returns the draw requests' bodies. */
   function serveChapter() {
     const draws: unknown[] = []
     server.use(
-      http.get('/api/chapters/c1', () => HttpResponse.json(chapter())),
-      http.get('/api/chapters/c1/attempts', () => HttpResponse.json([])),
+      http.get('/api/chapters', () => HttpResponse.json([chapterSummary()])),
       http.post('/api/quizzes/draw', async ({ request }) => {
         draws.push(await request.json())
         return HttpResponse.json(drawnQuiz())
@@ -103,7 +112,7 @@ describe('quiz runner', () => {
     return draws
   }
 
-  it('starts from the chapter page, survives a reload, and submits to the results', async () => {
+  it('starts from Quiz this chapter, survives a reload, and submits to the results', async () => {
     const draws = serveChapter()
     const submits: unknown[] = []
     server.use(
@@ -113,9 +122,11 @@ describe('quiz runner', () => {
       }),
     )
     const u = userEvent.setup()
-    const first = renderApp('/chapters/c1')
-    await u.selectOptions(await screen.findByLabelText('Number of questions'), '5')
-    await u.click(screen.getByRole('button', { name: 'Start quiz' }))
+    const first = renderApp('/quizzes?chapterId=c1')
+    fireEvent.change(await screen.findByRole('slider', { name: 'Number of questions' }), {
+      target: { value: '5' },
+    })
+    await u.click(screen.getByRole('button', { name: 'Start 5-question quiz' }))
     await waitFor(() => expect(first.router.state.location.pathname).toBe('/quizzes/run'))
     expect(draws).toEqual([{ chapterId: 'c1', count: 5 }])
     expect(await screen.findByRole('heading', { name: 'Cells' })).toBeInTheDocument()
@@ -156,8 +167,8 @@ describe('quiz runner', () => {
     serveChapter()
     server.use(http.post('/api/attempts', () => HttpResponse.json(submitted, { status: 201 })))
     const u = userEvent.setup()
-    const { router } = renderApp('/chapters/c1')
-    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    const { router } = renderApp('/quizzes?chapterId=c1')
+    await u.click(await screen.findByRole('button', { name: 'Start 10-question quiz' }))
     await u.click(await screen.findByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
@@ -165,7 +176,7 @@ describe('quiz runner', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
 
     router.history.back()
-    await waitFor(() => expect(router.state.location.pathname).toBe('/chapters/c1'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/quizzes'))
   })
 
   it('sends an empty tab to the quizzes page', async () => {
@@ -183,8 +194,8 @@ describe('quiz runner', () => {
       }),
     )
     const u = userEvent.setup()
-    const { router } = renderApp('/chapters/c1')
-    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    const { router } = renderApp('/quizzes?chapterId=c1')
+    await u.click(await screen.findByRole('button', { name: 'Start 10-question quiz' }))
     await u.click(await screen.findByRole('radio', { name: 'Mitochondria' }))
 
     await u.click(screen.getByRole('button', { name: 'Quit' }))
@@ -210,8 +221,8 @@ describe('quiz runner', () => {
       }),
     )
     const u = userEvent.setup()
-    const { router } = renderApp('/chapters/c1')
-    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    const { router } = renderApp('/quizzes?chapterId=c1')
+    await u.click(await screen.findByRole('button', { name: 'Start 10-question quiz' }))
     for (const name of ['Mitochondria', 'False']) {
       await u.click(await screen.findByRole('radio', { name }))
       await u.click(screen.getByRole('button', { name: 'Next' }))
@@ -240,8 +251,8 @@ describe('quiz runner', () => {
       ),
     )
     const u = userEvent.setup()
-    const { router } = renderApp('/chapters/c1')
-    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    const { router } = renderApp('/quizzes?chapterId=c1')
+    await u.click(await screen.findByRole('button', { name: 'Start 10-question quiz' }))
     for (const name of ['Mitochondria', 'False']) {
       await u.click(await screen.findByRole('radio', { name }))
       await u.click(screen.getByRole('button', { name: 'Next' }))
@@ -258,6 +269,27 @@ describe('quiz runner', () => {
     await u.click(screen.getByRole('button', { name: 'Discard' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/quizzes'))
     expect(window.sessionStorage.length).toBe(0)
+  })
+
+  // Regression: the page read chapterTitle, which a whole-topic quiz doesn't have.
+  it('names a whole-topic quiz whose questions were deleted', async () => {
+    server.use(
+      http.post('/api/attempts', () =>
+        HttpResponse.json(
+          { error: 'content_deleted', message: 'some of these questions were deleted' },
+          { status: 409 },
+        ),
+      ),
+    )
+    startQuiz(topicQuiz())
+    const u = userEvent.setup()
+    renderApp('/quizzes/run')
+    for (let i = 0; i < 2; i++) await u.click(await screen.findByRole('button', { name: 'Next' }))
+    await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
+    await u.click(await screen.findByRole('button', { name: 'Submit anyway' }))
+
+    await screen.findByText("Some of these questions were deleted, so this quiz can't be saved.")
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('All of Biology')
   })
 })
 
@@ -302,13 +334,19 @@ describe('session', () => {
 })
 
 describe('sidebar', () => {
-  it('lists Upload, Dashboard, Quizzes, History in order and marks the current page', async () => {
+  it('lists Upload, Dashboard, Topics, Quizzes, History in order and marks the current page', async () => {
     server.use(http.get('/api/chapters', () => HttpResponse.json([])))
     const u = userEvent.setup()
     const { router } = renderApp('/')
     const nav = await screen.findByRole('navigation', { name: 'Main' })
     const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Upload', 'Dashboard', 'Quizzes', 'History'])
+    expect(links.map((l) => l.textContent)).toEqual([
+      'Upload',
+      'Dashboard',
+      'Topics',
+      'Quizzes',
+      'History',
+    ])
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
       'aria-current',
       'page',

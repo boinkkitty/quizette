@@ -80,4 +80,29 @@ describe('quiz slot', () => {
     clearQuizFrom(['c3', 'c1'])
     expect(loadQuiz()).toBeNull()
   })
+
+  // Regression: a topic quiz has no chapterId of its own, so deleting one of its chapters
+  // left a quiz in the slot that could no longer be submitted.
+  it('deleting a chapter clears a whole-topic quiz that drew from it', () => {
+    const fromChapters = (ids: Record<string, string>): DrawnQuiz => ({
+      scope: 'topic',
+      topicId: 't1',
+      topicName: 'Biology',
+      questions: Object.entries(ids).map(([id, chapterId], position) => ({
+        id,
+        position,
+        type: 'true_false',
+        prompt: `Question ${id}?`,
+        options: ['True', 'False'],
+        chapterId,
+      })),
+    })
+    startQuiz(fromChapters({ q1: 'c1', q2: 'c2' }))
+
+    clearQuizFrom(['c3'])
+    expect(loadQuiz()).not.toBeNull()
+
+    clearQuizFrom(['c2'])
+    expect(loadQuiz()).toBeNull()
+  })
 })

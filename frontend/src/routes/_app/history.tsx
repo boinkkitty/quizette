@@ -21,7 +21,10 @@ function HistoryPage() {
       />
       {attempts.length === 0 ? (
         <EmptyState title="No attempts yet">
-          Start one from{' '}
+          <Link to="/upload" className="font-medium text-primary hover:underline">
+            Upload a PDF
+          </Link>{' '}
+          to make a chapter, then quiz yourself on it from{' '}
           <Link to="/quizzes" className="font-medium text-primary hover:underline">
             Quizzes
           </Link>
