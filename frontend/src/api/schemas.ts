@@ -17,6 +17,10 @@ export const topicSchema = z.object({
   id: z.string(),
   name: z.string(),
   chapterCount: z.number().int(),
+  /** Topic-scoped attempts only; the scores are null until there is one. */
+  attemptCount: z.number().int(),
+  lastScorePct: z.number().nullable(),
+  bestScorePct: z.number().nullable(),
   createdAt: z.string(),
 })
 export type Topic = z.infer<typeof topicSchema>
@@ -89,6 +93,9 @@ export const questionSchema = z.object({
   correct: z.array(z.number().int()).optional(),
   explanation: z.string().optional(),
   sourceHint: z.string().optional(),
+  /** The question's chapter, set in a quiz or attempt. */
+  chapterId: z.string().optional(),
+  chapterTitle: z.string().optional(),
 })
 export type Question = z.infer<typeof questionSchema>
 
@@ -99,17 +106,43 @@ export const questionSetSchema = z.object({
 })
 export type QuestionSet = z.infer<typeof questionSetSchema>
 
-/** POST /api/quizzes/draw: the questions of an unfinished quiz, without correct answers. */
-export const drawnQuizSchema = z.object({
+/** What an attempt draws from (ADR 0010): one chapter, or a whole topic's ready chapters. */
+export type ScopeRef = { chapterId: string } | { topicId: string }
+
+const chapterScopeSchema = z.object({
+  scope: z.literal('chapter'),
   chapterId: z.string(),
   chapterTitle: z.string(),
-  questions: z.array(questionSchema),
 })
+const topicScopeSchema = z.object({
+  scope: z.literal('topic'),
+  topicId: z.string(),
+  topicName: z.string(),
+})
+
+/** POST /api/quizzes/draw: the questions of an unfinished quiz, without correct answers. */
+export const drawnQuizSchema = z.discriminatedUnion('scope', [
+  chapterScopeSchema.extend({ questions: z.array(questionSchema) }),
+  topicScopeSchema.extend({ questions: z.array(questionSchema) }),
+])
 export type DrawnQuiz = z.infer<typeof drawnQuizSchema>
 
+/** The scope a quiz was drawn from, as the draw and submit requests name it. */
+export function scopeRef(quiz: DrawnQuiz): ScopeRef {
+  return quiz.scope === 'topic' ? { topicId: quiz.topicId } : { chapterId: quiz.chapterId }
+}
+
+/** The quiz's title: the chapter, or "All of <topic>" for a whole-topic quiz. */
+export function scopeTitle(quiz: DrawnQuiz): string {
+  return quiz.scope === 'topic' ? `All of ${quiz.topicName}` : quiz.chapterTitle
+}
+
+/** An attempt sets chapterId for a chapter scope and topicId for a topic scope. */
 export const attemptSummarySchema = z.object({
   id: z.string(),
-  chapterId: z.string(),
+  scope: z.enum(['chapter', 'topic']),
+  chapterId: z.string().optional(),
+  topicId: z.string().optional(),
   count: z.number().int(),
   totalScore: z.number(),
   maxScore: z.number().int(),
@@ -121,7 +154,8 @@ export type AttemptSummary = z.infer<typeof attemptSummarySchema>
 
 /** One row of GET /api/attempts: an attempt plus the names needed to list it across chapters. */
 export const attemptHistoryItemSchema = attemptSummarySchema.extend({
-  chapterTitle: z.string(),
+  /** Empty for a topic quiz. topicId is set for both scopes. */
+  chapterTitle: z.string().optional(),
   topicId: z.string(),
   topicName: z.string(),
 })
@@ -136,7 +170,9 @@ export const answerSchema = z.object({
 export type Answer = z.infer<typeof answerSchema>
 
 export const attemptSchema = attemptSummarySchema.extend({
-  chapterTitle: z.string(),
+  /** chapterTitle names a chapter scope, topicName a topic scope. */
+  chapterTitle: z.string().optional(),
+  topicName: z.string().optional(),
   questions: z.array(questionSchema),
   answers: z.array(answerSchema),
 })

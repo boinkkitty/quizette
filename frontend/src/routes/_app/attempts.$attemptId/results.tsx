@@ -25,13 +25,23 @@ function ResultsPage() {
       <PageHeader
         title="Results"
         subtitle={
-          <Link
-            to="/chapters/$chapterId"
-            params={{ chapterId: attempt.chapterId }}
-            className="hover:text-primary hover:underline"
-          >
-            ← {attempt.chapterTitle}
-          </Link>
+          attempt.chapterId === undefined ? (
+            <Link
+              to="/topics/$topicId"
+              params={{ topicId: attempt.topicId ?? '' }}
+              className="hover:text-primary hover:underline"
+            >
+              ← All of {attempt.topicName}
+            </Link>
+          ) : (
+            <Link
+              to="/chapters/$chapterId"
+              params={{ chapterId: attempt.chapterId }}
+              className="hover:text-primary hover:underline"
+            >
+              ← {attempt.chapterTitle}
+            </Link>
+          )
         }
       />
       <Card className="mb-6 border-primary/20 bg-secondary/40">

@@ -46,13 +46,23 @@ function HistoryPage() {
                 <tr key={a.id}>
                   <td className="px-5 py-3 whitespace-nowrap">{formatDate(a.submittedAt)}</td>
                   <td className="px-5 py-3">
-                    <Link
-                      to="/chapters/$chapterId"
-                      params={{ chapterId: a.chapterId }}
-                      className="font-medium hover:text-primary hover:underline"
-                    >
-                      {a.chapterTitle}
-                    </Link>
+                    {a.chapterId === undefined ? (
+                      <Link
+                        to="/topics/$topicId"
+                        params={{ topicId: a.topicId }}
+                        className="font-medium hover:text-primary hover:underline"
+                      >
+                        All of {a.topicName}
+                      </Link>
+                    ) : (
+                      <Link
+                        to="/chapters/$chapterId"
+                        params={{ chapterId: a.chapterId }}
+                        className="font-medium hover:text-primary hover:underline"
+                      >
+                        {a.chapterTitle}
+                      </Link>
+                    )}
                     <p className="text-xs text-muted-foreground">{a.topicName}</p>
                   </td>
                   <td className="px-5 py-3">{a.count}</td>

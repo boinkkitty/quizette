@@ -110,7 +110,7 @@ function ChapterPage() {
 
 function ReadyChapter({ chapter }: { chapter: Chapter }) {
   const navigate = useNavigate()
-  const start = useDrawQuiz(chapter.id)
+  const start = useDrawQuiz()
   const options = countOptions(chapter.questionCount)
   const [count, setCount] = useState(Math.min(10, chapter.questionCount))
   const [reviewing, setReviewing] = useState(false)
@@ -149,12 +149,15 @@ function ReadyChapter({ chapter }: { chapter: Chapter }) {
             className="w-full"
             disabled={start.isPending}
             onClick={() => {
-              start.mutate(count, {
-                onSuccess: (quiz) => {
-                  startQuiz(quiz)
-                  void navigate({ to: '/quizzes/run' })
+              start.mutate(
+                { scope: { chapterId: chapter.id }, count },
+                {
+                  onSuccess: (quiz) => {
+                    startQuiz(quiz)
+                    void navigate({ to: '/quizzes/run' })
+                  },
                 },
-              })
+              )
             }}
           >
             {start.isPending && <Spinner />} Start quiz

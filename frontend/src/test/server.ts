@@ -17,9 +17,20 @@ export const user: User = { id: 'u1', email: 'ada@example.com', name: 'Ada', ava
 export const unauthorized = () =>
   HttpResponse.json({ error: 'unauthorized', message: 'not logged in' }, { status: 401 })
 
-export const topics: Topic[] = [
-  { id: 't1', name: 'Biology', chapterCount: 1, createdAt: '2026-11-20T10:00:00Z' },
-]
+export function topic(overrides: Partial<Topic> = {}): Topic {
+  return {
+    id: 't1',
+    name: 'Biology',
+    chapterCount: 1,
+    attemptCount: 0,
+    lastScorePct: null,
+    bestScorePct: null,
+    createdAt: '2026-11-20T10:00:00Z',
+    ...overrides,
+  }
+}
+
+export const topics: Topic[] = [topic()]
 
 export function job(overrides: Partial<Job> = {}): Job {
   return {
@@ -42,6 +53,7 @@ export function job(overrides: Partial<Job> = {}): Job {
 export function attempt(overrides: Partial<Attempt> = {}): Attempt {
   return {
     id: 'a1',
+    scope: 'chapter',
     chapterId: 'c1',
     count: 5,
     totalScore: 0,
@@ -78,9 +90,30 @@ export function attempt(overrides: Partial<Attempt> = {}): Attempt {
   }
 }
 
-/** The draw for a quiz over attempt()'s questions, as POST /api/quizzes/draw returns it. */
-export function drawnQuiz(overrides: Partial<DrawnQuiz> = {}): DrawnQuiz {
-  return { chapterId: 'c1', chapterTitle: 'Cells', questions: attempt().questions, ...overrides }
+/** A chapter quiz over attempt()'s questions, as POST /api/quizzes/draw returns it. */
+export function drawnQuiz(
+  overrides: Partial<Omit<Extract<DrawnQuiz, { scope: 'chapter' }>, 'scope'>> = {},
+): DrawnQuiz {
+  return {
+    scope: 'chapter',
+    chapterId: 'c1',
+    chapterTitle: 'Cells',
+    questions: attempt().questions,
+    ...overrides,
+  }
+}
+
+/** A whole-topic quiz over attempt()'s questions, as POST /api/quizzes/draw returns it. */
+export function topicQuiz(
+  overrides: Partial<Omit<Extract<DrawnQuiz, { scope: 'topic' }>, 'scope'>> = {},
+): DrawnQuiz {
+  return {
+    scope: 'topic',
+    topicId: 't1',
+    topicName: 'Biology',
+    questions: attempt().questions,
+    ...overrides,
+  }
 }
 
 export function chapter(overrides: Partial<Chapter> = {}): Chapter {
@@ -115,6 +148,7 @@ export function chapterSummary(overrides: Partial<ChapterSummary> = {}): Chapter
 export function historyItem(overrides: Partial<AttemptHistoryItem> = {}): AttemptHistoryItem {
   return {
     id: 'a1',
+    scope: 'chapter',
     chapterId: 'c1',
     count: 5,
     totalScore: 2.5,
