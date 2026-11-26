@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 
 import type { Attempt } from '../api/schemas'
+import { startQuiz } from '../lib/quizSlot'
 import { renderApp } from './app'
 import {
   attempt,
@@ -11,6 +12,7 @@ import {
   drawnQuiz,
   historyItem,
   server,
+  topicQuiz,
   unauthorized,
   user,
 } from './server'
@@ -267,6 +269,27 @@ describe('quiz runner', () => {
     await u.click(screen.getByRole('button', { name: 'Discard' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/quizzes'))
     expect(window.sessionStorage.length).toBe(0)
+  })
+
+  // Regression: the page read chapterTitle, which a whole-topic quiz doesn't have.
+  it('names a whole-topic quiz whose questions were deleted', async () => {
+    server.use(
+      http.post('/api/attempts', () =>
+        HttpResponse.json(
+          { error: 'content_deleted', message: 'some of these questions were deleted' },
+          { status: 409 },
+        ),
+      ),
+    )
+    startQuiz(topicQuiz())
+    const u = userEvent.setup()
+    renderApp('/quizzes/run')
+    for (let i = 0; i < 2; i++) await u.click(await screen.findByRole('button', { name: 'Next' }))
+    await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
+    await u.click(await screen.findByRole('button', { name: 'Submit anyway' }))
+
+    await screen.findByText("Some of these questions were deleted, so this quiz can't be saved.")
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('All of Biology')
   })
 })
 

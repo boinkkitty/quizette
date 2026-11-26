@@ -38,7 +38,7 @@ function RunQuiz({ saved }: { saved: NonNullable<ReturnType<typeof loadQuiz>> })
   if (deleted) {
     return (
       <>
-        <PageHeader title={quiz.chapterTitle} />
+        <PageHeader title={scopeTitle(quiz)} />
         <EmptyState title="Some of these questions were deleted, so this quiz can't be saved.">
           <Button
             className="mt-2"
