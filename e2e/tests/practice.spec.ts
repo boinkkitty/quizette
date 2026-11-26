@@ -47,7 +47,7 @@ test('upload a PDF, take a quiz with partial MRQ credit, see history', async ({ 
     await page.getByRole('button', { name: i === 4 ? 'Submit quiz' : 'Next' }).click()
   }
 
-  await expect(page).toHaveURL(/\/attempts\/[^/]+\/results$/)
+  await expect(page).toHaveURL(/\/history\/[^/]+$/)
   await expect(page.getByTestId('score')).toHaveText(`${String(expected)} / 5`)
 
   // Back from the results skips the finished quiz.
@@ -79,11 +79,11 @@ test('upload a PDF, take a quiz with partial MRQ credit, see history', async ({ 
   await expect(page.getByRole('button', { name: 'Show answer' })).toBeVisible()
 
   await nav.getByRole('link', { name: 'History' }).click()
-  const rows = page.getByRole('table').getByRole('row')
-  await expect(rows).toHaveCount(2) // header + 1 attempt
-  await expect(rows.nth(1)).toContainText('Cells')
-  await expect(rows.nth(1)).toContainText(`${String(expected)} / 5`)
-  await rows.nth(1).getByRole('link', { name: 'Review' }).click()
+  const rows = page.getByRole('list', { name: 'Attempts' }).getByRole('link')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('Cells')
+  await expect(rows.first()).toContainText(`${String(Math.round((expected / 5) * 100))}%`)
+  await rows.first().click()
   await expect(page.getByTestId('score')).toHaveText(`${String(expected)} / 5`)
 })
 

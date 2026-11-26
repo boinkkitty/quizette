@@ -424,6 +424,7 @@ func (r attemptRepo) ListByOwner(ctx context.Context, owner domain.ID, limit int
 			TopicID:      domain.ID(row.ScopeTopicID),
 			TopicName:    row.TopicName,
 			ScopeDeleted: row.ScopeDeleted,
+			ChapterCount: int(row.ChapterCount),
 		}
 	}
 	return out, nil

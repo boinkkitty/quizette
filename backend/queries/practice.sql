@@ -22,9 +22,13 @@ SELECT * FROM attempts WHERE owner_id = $1 AND chapter_id = $2 ORDER BY started_
 -- The History page: newest attempts across all scopes, with names for display. A
 -- topic attempt has no chapter, so chapter_title is empty and the topic is its own.
 -- Deleted chapters and topics are included and flagged by scope_deleted.
+-- chapter_count is the number of distinct chapters the attempt drew questions from.
 -- name: ListAttemptsByOwner :many
 SELECT a.*, coalesce(c.title, '')::text AS chapter_title, t.id AS scope_topic_id, t.name AS topic_name,
-    (CASE WHEN a.scope = 'chapter' THEN c.deleted_at IS NOT NULL ELSE t.deleted_at IS NOT NULL END)::bool AS scope_deleted
+    (CASE WHEN a.scope = 'chapter' THEN c.deleted_at IS NOT NULL ELSE t.deleted_at IS NOT NULL END)::bool AS scope_deleted,
+    (SELECT count(DISTINCT s.chapter_id) FROM questions q
+        JOIN question_sets s ON s.id = q.question_set_id
+        WHERE q.id = ANY(a.question_ids))::int AS chapter_count
 FROM attempts a
 LEFT JOIN chapters c ON c.id = a.chapter_id
 JOIN topics t ON t.id = coalesce(a.topic_id, c.topic_id)

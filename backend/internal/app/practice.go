@@ -26,11 +26,14 @@ type ScopedQuestion struct {
 
 // AttemptView is an attempt with its drawn questions in draw order. ScopeName is the
 // chapter's title or the topic's name, according to the attempt scope, and
-// ScopeDeleted reports whether that chapter or topic is deleted.
+// ScopeDeleted reports whether that chapter or topic is deleted. TopicID and
+// TopicName name the scope's topic: the topic itself, or the chapter's topic.
 type AttemptView struct {
 	Attempt      domain.Attempt
 	ScopeName    string
 	ScopeDeleted bool
+	TopicID      domain.ID
+	TopicName    string
 	Questions    []ScopedQuestion
 }
 
@@ -47,8 +50,9 @@ type DrawnQuiz struct {
 type scopePool struct {
 	name    string
 	pool    domain.Pool
-	titles  map[domain.ID]string // chapter ID to title
-	deleted map[domain.ID]bool   // chapter ID to whether it is deleted
+	titles  map[domain.ID]string    // Maps a chapter ID to its title.
+	deleted map[domain.ID]bool      // Maps a chapter ID to whether it is deleted.
+	topics  map[domain.ID]domain.ID // Maps a chapter ID to its topic's ID.
 }
 
 // loadPool loads the question sets of the scope's ready chapters. A topic's
@@ -97,7 +101,7 @@ func (s *PracticeService) loadPool(ctx context.Context, ownerID domain.ID, scope
 
 // poolOf loads the question sets of chapters, in order.
 func (s *PracticeService) poolOf(ctx context.Context, chapters []domain.Chapter) (scopePool, error) {
-	out := scopePool{titles: make(map[domain.ID]string, len(chapters)), deleted: make(map[domain.ID]bool, len(chapters))}
+	out := scopePool{titles: make(map[domain.ID]string, len(chapters)), deleted: make(map[domain.ID]bool, len(chapters)), topics: make(map[domain.ID]domain.ID, len(chapters))}
 	for _, ch := range chapters {
 		set, err := s.Repos.QuestionSets.GetByChapter(ctx, ch.ID)
 		if err != nil {
@@ -106,6 +110,7 @@ func (s *PracticeService) poolOf(ctx context.Context, chapters []domain.Chapter)
 		out.pool = append(out.pool, set)
 		out.titles[ch.ID] = ch.Title
 		out.deleted[ch.ID] = ch.DeletedAt != nil
+		out.topics[ch.ID] = ch.TopicID
 	}
 	return out, nil
 }
@@ -161,7 +166,30 @@ func (s *PracticeService) SubmitQuiz(ctx context.Context, ownerID domain.ID, sco
 	logctx.From(ctx, s.Logger).InfoContext(ctx, "attempt.submitted", slog.String("attempt_id", a.ID.String()),
 		slog.String("scope", string(scope.Type)), slog.String("scope_id", scope.ID.String()),
 		slog.Float64("score", a.TotalScore), slog.Int("max_score", a.MaxScore))
-	return AttemptView{Attempt: a, ScopeName: p.name, Questions: p.questions(a.QuestionIDs)}, nil
+	return s.attemptView(ctx, ownerID, a, p)
+}
+
+// attemptView describes a, whose questions p holds. A chapter scope takes its
+// title and deleted flag from p; a topic scope takes them from the topic, which
+// is read even when deleted. Either way the view names the scope's topic.
+func (s *PracticeService) attemptView(ctx context.Context, ownerID domain.ID, a domain.Attempt, p scopePool) (AttemptView, error) {
+	topicID := a.Scope.ID
+	if a.Scope.Type == domain.ScopeChapter {
+		topicID = p.topics[a.Scope.ID]
+	}
+	t, err := s.Repos.Topics.GetIncludingDeleted(ctx, ownerID, topicID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	v := AttemptView{
+		Attempt: a, TopicID: t.ID, TopicName: t.Name,
+		ScopeName: t.Name, ScopeDeleted: t.DeletedAt != nil,
+		Questions: p.questions(a.QuestionIDs),
+	}
+	if a.Scope.Type == domain.ScopeChapter {
+		v.ScopeName, v.ScopeDeleted = p.titles[a.Scope.ID], p.deleted[a.Scope.ID]
+	}
+	return v, nil
 }
 
 // checkNotDeleted fails with domain.ErrDeletedContent unless every question is in one
@@ -199,18 +227,7 @@ func (s *PracticeService) GetAttempt(ctx context.Context, ownerID, attemptID dom
 	if err != nil {
 		return AttemptView{}, err
 	}
-	v := AttemptView{Attempt: a, Questions: p.questions(a.QuestionIDs)}
-	switch a.Scope.Type {
-	case domain.ScopeChapter:
-		v.ScopeName, v.ScopeDeleted = p.titles[a.Scope.ID], p.deleted[a.Scope.ID]
-	case domain.ScopeTopic:
-		t, err := s.Repos.Topics.GetIncludingDeleted(ctx, ownerID, a.Scope.ID)
-		if err != nil {
-			return AttemptView{}, err
-		}
-		v.ScopeName, v.ScopeDeleted = t.Name, t.DeletedAt != nil
-	}
-	return v, nil
+	return s.attemptView(ctx, ownerID, a, p)
 }
 
 // ListChapterAttempts returns the chapter's chapter-scoped attempt history, newest first.

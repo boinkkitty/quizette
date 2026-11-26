@@ -96,6 +96,8 @@ export const questionSchema = z.object({
   /** The question's chapter, set in a quiz or attempt. */
   chapterId: z.string().optional(),
   chapterTitle: z.string().optional(),
+  /** Set on a past attempt's question whose chapter is deleted. */
+  chapterDeleted: z.boolean().optional(),
 })
 export type Question = z.infer<typeof questionSchema>
 
@@ -127,8 +129,10 @@ export const drawnQuizSchema = z.discriminatedUnion('scope', [
 ])
 export type DrawnQuiz = z.infer<typeof drawnQuizSchema>
 
-/** The scope a quiz was drawn from, as the draw and submit requests name it. */
-export function scopeRef(quiz: DrawnQuiz): ScopeRef {
+/** The scope a quiz or attempt draws from, as the draw and submit requests and /quizzes name it. */
+export function scopeRef(
+  quiz: { scope: 'topic'; topicId: string } | { scope: 'chapter'; chapterId: string },
+): ScopeRef {
   return quiz.scope === 'topic' ? { topicId: quiz.topicId } : { chapterId: quiz.chapterId }
 }
 
@@ -158,6 +162,10 @@ export const attemptHistoryItemSchema = attemptSummarySchema.extend({
   chapterTitle: z.string().optional(),
   topicId: z.string(),
   topicName: z.string(),
+  /** Whether the attempt's chapter (chapter quiz) or topic (topic quiz) is deleted. */
+  scopeDeleted: z.boolean(),
+  /** How many chapters the attempt drew questions from, deleted or not. */
+  chapterCount: z.number().int(),
 })
 export type AttemptHistoryItem = z.infer<typeof attemptHistoryItemSchema>
 
@@ -170,13 +178,52 @@ export const answerSchema = z.object({
 export type Answer = z.infer<typeof answerSchema>
 
 export const attemptSchema = attemptSummarySchema.extend({
-  /** chapterTitle names a chapter scope, topicName a topic scope. */
+  /** Names a chapter scope; empty for a topic quiz. */
   chapterTitle: z.string().optional(),
-  topicName: z.string().optional(),
+  /** The topic quizzed, or the chapter's topic for a chapter quiz. */
+  topicId: z.string(),
+  topicName: z.string(),
+  /** Whether the attempt's chapter (chapter quiz) or topic (topic quiz) is deleted. */
+  scopeDeleted: z.boolean(),
   questions: z.array(questionSchema),
   answers: z.array(answerSchema),
 })
 export type Attempt = z.infer<typeof attemptSchema>
+
+/** A past attempt's scope, narrowed so that a chapter scope always names its chapter. */
+export type AttemptScope =
+  | { scope: 'topic'; topicId: string; name: string }
+  | { scope: 'chapter'; chapterId: string; name: string }
+
+/**
+ * The scope of a, named by its chapter's title or its topic's name. The API always
+ * names a chapter scope's chapter, so a missing one throws instead of linking nowhere.
+ */
+export function attemptScope(a: AttemptHistoryItem | Attempt): AttemptScope {
+  if (a.scope === 'topic') return { scope: 'topic', topicId: a.topicId, name: a.topicName }
+  if (a.chapterId === undefined || a.chapterTitle === undefined) {
+    throw new Error(`attempt ${a.id} has a chapter scope but no chapter`)
+  }
+  return { scope: 'chapter', chapterId: a.chapterId, name: a.chapterTitle }
+}
+
+/** The chapter a quiz or attempt question came from. */
+export interface QuestionChapter {
+  id: string
+  title: string
+  deleted: boolean
+}
+
+/**
+ * The chapter q came from. The API names it on every question of a quiz or attempt,
+ * so a missing one throws.
+ */
+export function questionChapter(q: Question): QuestionChapter {
+  if (q.chapterId === undefined || q.chapterTitle === undefined) {
+    throw new Error(`question ${q.id} has no chapter`)
+  }
+  return { id: q.chapterId, title: q.chapterTitle, deleted: q.chapterDeleted === true }
+}
 
 export const uploadResultSchema = z.object({
   jobId: z.string(),

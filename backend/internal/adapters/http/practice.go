@@ -129,6 +129,7 @@ func (s *Server) listAllAttempts(w http.ResponseWriter, r *http.Request) {
 			TopicID:           a.TopicID.String(),
 			TopicName:         a.TopicName,
 			ScopeDeleted:      a.ScopeDeleted,
+			ChapterCount:      a.ChapterCount,
 		}
 	}
 	writeJSON(w, http.StatusOK, out)

@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 
 import { renderApp } from './app'
-import { chapter, chapterSummary, historyItem, job, server, topic } from './server'
+import { attempt, chapter, chapterSummary, historyItem, job, server, topic } from './server'
 
 // Each page has one fixed parent, and its back link always goes there (issue #19).
 
@@ -42,16 +42,22 @@ describe('topic page', () => {
     )
   }
 
-  it('leads back to Topics, even when opened from History', async () => {
+  it('leads back to Topics, even when reached from History', async () => {
     serveTopic()
     server.use(
       http.get('/api/attempts', () =>
         HttpResponse.json([historyItem({ scope: 'topic', chapterId: undefined })]),
       ),
+      http.get('/api/attempts/a1', () =>
+        HttpResponse.json(
+          attempt({ scope: 'topic', chapterId: undefined, chapterTitle: undefined }),
+        ),
+      ),
     )
     const u = userEvent.setup()
     const { router } = renderApp('/history')
-    await u.click(await screen.findByRole('link', { name: 'All of Biology' }))
+    await u.click(await screen.findByRole('link', { name: /All of Biology/ }))
+    await u.click(await screen.findByRole('link', { name: 'Go to Biology' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/topics/t1'))
     expect(await screen.findByRole('link', { name: '← Topics' })).toHaveAttribute('href', '/topics')
   })
@@ -96,12 +102,16 @@ describe('chapter page', () => {
     )
   }
 
-  it('leads back to its topic, even from History, and only links out to quiz or view', async () => {
+  it('leads back to its topic, even when reached from History, and only links out to quiz or view', async () => {
     serveChapter()
-    server.use(http.get('/api/attempts', () => HttpResponse.json([historyItem()])))
+    server.use(
+      http.get('/api/attempts', () => HttpResponse.json([historyItem()])),
+      http.get('/api/attempts/a1', () => HttpResponse.json(attempt())),
+    )
     const u = userEvent.setup()
     const { router } = renderApp('/history')
-    await u.click(await screen.findByRole('link', { name: 'Cells' }))
+    await u.click(await screen.findByRole('link', { name: /Cells/ }))
+    await u.click(await screen.findByRole('link', { name: 'Go to Cells' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/chapters/c1'))
 
     expect(await screen.findByRole('link', { name: '← Biology' })).toHaveAttribute(

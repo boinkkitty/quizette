@@ -489,6 +489,11 @@ func (r attemptRepo) ListByOwner(_ context.Context, owner domain.ID, limit int) 
 		} else {
 			sum.ScopeDeleted = r.s.topics[a.Scope.ID].DeletedAt != nil
 		}
+		for chapterID := range r.s.chapters {
+			if r.s.setHoldsAny(chapterID, a.QuestionIDs) {
+				sum.ChapterCount++
+			}
+		}
 		out = append(out, sum)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })

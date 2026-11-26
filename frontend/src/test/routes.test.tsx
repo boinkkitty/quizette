@@ -6,16 +6,7 @@ import { describe, expect, it } from 'vitest'
 import type { Attempt } from '../api/schemas'
 import { startQuiz } from '../lib/quizSlot'
 import { renderApp } from './app'
-import {
-  attempt,
-  chapterSummary,
-  drawnQuiz,
-  historyItem,
-  server,
-  topicQuiz,
-  unauthorized,
-  user,
-} from './server'
+import { attempt, chapterSummary, drawnQuiz, server, topicQuiz, unauthorized, user } from './server'
 
 describe('routing', () => {
   it('redirects logged-out users to login, preserving the destination', async () => {
@@ -147,7 +138,7 @@ describe('quiz runner', () => {
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
 
     expect(await screen.findByTestId('score')).toHaveTextContent('2.5 / 5')
-    expect(router.state.location.pathname).toBe('/attempts/a1/results')
+    expect(router.state.location.pathname).toBe('/history/a1')
     expect(screen.getByText('0.5 / 1 point')).toBeInTheDocument()
     expect(submits).toEqual([
       {
@@ -173,7 +164,7 @@ describe('quiz runner', () => {
     await u.click(screen.getByRole('button', { name: 'Next' }))
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
     await u.click(await screen.findByRole('button', { name: 'Submit anyway' }))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/history/a1'))
 
     router.history.back()
     await waitFor(() => expect(router.state.location.pathname).toBe('/quizzes'))
@@ -236,7 +227,7 @@ describe('quiz runner', () => {
     expect(window.sessionStorage.length).toBe(1)
 
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/history/a1'))
     expect(calls).toBe(2)
   })
 
@@ -442,33 +433,6 @@ describe('view questions', () => {
     await u.click(screen.getByRole('button', { name: 'Hide answer' }))
     expect(screen.queryByText('Correct')).not.toBeInTheDocument()
     expect(options()).toHaveLength(4) // options stay visible
-  })
-})
-
-describe('history page', () => {
-  it('lists attempts across chapters with review links', async () => {
-    server.use(
-      http.get('/api/attempts', () =>
-        HttpResponse.json([
-          historyItem({ id: 'a2', chapterTitle: 'Rome', topicName: 'History' }),
-          historyItem(),
-        ]),
-      ),
-    )
-    renderApp('/history')
-    const rows = (await screen.findAllByRole('row')).slice(1)
-    expect(rows).toHaveLength(2)
-    const [rome, cells] = rows
-    if (rome === undefined || cells === undefined) throw new Error('missing rows')
-    expect(within(rome).getByText('Rome')).toBeInTheDocument()
-    expect(within(cells).getByText('Biology')).toBeInTheDocument()
-    expect(cells).toHaveTextContent('2.5 / 5 (50%)')
-    expect(within(cells).getByRole('link', { name: 'Review' })).toHaveAttribute(
-      'href',
-      '/attempts/a1/results',
-    )
-    expect(screen.queryByText('In progress')).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Resume' })).not.toBeInTheDocument()
   })
 })
 

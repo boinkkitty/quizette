@@ -202,7 +202,10 @@ func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByC
 
 const listAttemptsByOwner = `-- name: ListAttemptsByOwner :many
 SELECT a.id, a.owner_id, a.chapter_id, a.requested_count, a.question_ids, a.total_score, a.max_score, a.started_at, a.submitted_at, a.scope, a.topic_id, coalesce(c.title, '')::text AS chapter_title, t.id AS scope_topic_id, t.name AS topic_name,
-    (CASE WHEN a.scope = 'chapter' THEN c.deleted_at IS NOT NULL ELSE t.deleted_at IS NOT NULL END)::bool AS scope_deleted
+    (CASE WHEN a.scope = 'chapter' THEN c.deleted_at IS NOT NULL ELSE t.deleted_at IS NOT NULL END)::bool AS scope_deleted,
+    (SELECT count(DISTINCT s.chapter_id) FROM questions q
+        JOIN question_sets s ON s.id = q.question_set_id
+        WHERE q.id = ANY(a.question_ids))::int AS chapter_count
 FROM attempts a
 LEFT JOIN chapters c ON c.id = a.chapter_id
 JOIN topics t ON t.id = coalesce(a.topic_id, c.topic_id)
@@ -232,11 +235,13 @@ type ListAttemptsByOwnerRow struct {
 	ScopeTopicID   string
 	TopicName      string
 	ScopeDeleted   bool
+	ChapterCount   int32
 }
 
 // The History page: newest attempts across all scopes, with names for display. A
 // topic attempt has no chapter, so chapter_title is empty and the topic is its own.
 // Deleted chapters and topics are included and flagged by scope_deleted.
+// chapter_count is the number of distinct chapters the attempt drew questions from.
 func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwnerParams) ([]ListAttemptsByOwnerRow, error) {
 	rows, err := q.db.Query(ctx, listAttemptsByOwner, arg.OwnerID, arg.Limit)
 	if err != nil {
@@ -262,6 +267,7 @@ func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwn
 			&i.ScopeTopicID,
 			&i.TopicName,
 			&i.ScopeDeleted,
+			&i.ChapterCount,
 		); err != nil {
 			return nil, err
 		}
