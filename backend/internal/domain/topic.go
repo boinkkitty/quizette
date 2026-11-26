@@ -8,13 +8,16 @@ import (
 
 const maxNameLen = 120
 
-// Topic groups a user's chapters. Uniqueness of Name per owner is enforced by
-// the repository (a set-wide rule), surfaced as ErrConflict.
+// Topic groups a user's chapters. Uniqueness of Name among the owner's topics that
+// are not deleted is enforced by the repository (a set-wide rule), surfaced as
+// ErrConflict. DeletedAt is set on a deleted topic: one kept, hidden, because an
+// attempt refers to it or one of its chapters (ADR 0010).
 type Topic struct {
 	ID        ID
 	OwnerID   ID
 	Name      string
 	CreatedAt time.Time
+	DeletedAt *time.Time
 }
 
 // NewTopic validates and creates a Topic.

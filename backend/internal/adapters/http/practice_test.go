@@ -410,9 +410,13 @@ func TestSubmitQuizRejectsInvalidDraws(t *testing.T) {
 		}
 	}
 
+	// Eve names Ada's chapter as the scope of her own questions. (Ada's questions are
+	// unknown to Eve, so naming them is rejected as deleted content.)
 	eve := h.client(t)
-	readyChapter(t, eve, "eve@example.com", "Eve", 5)
-	if code := eve.do("POST", "/api/attempts", map[string]any{"chapterId": chapterID, "questionIds": ids, "answers": []any{}}, nil); code != http.StatusNotFound {
+	eveChapterID := readyChapter(t, eve, "eve@example.com", "Eve", 5)
+	var eveQuiz drawnQuiz
+	eve.do("POST", "/api/quizzes/draw", map[string]any{"chapterId": eveChapterID, "count": 5}, &eveQuiz)
+	if code := eve.do("POST", "/api/attempts", map[string]any{"chapterId": chapterID, "questionIds": questionIDs(eveQuiz), "answers": []any{}}, nil); code != http.StatusNotFound {
 		t.Errorf("submit to another user's chapter: %d", code)
 	}
 

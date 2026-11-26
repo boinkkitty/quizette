@@ -65,7 +65,7 @@ function ChapterPage() {
               </Button>
             }
             title={`Delete "${chapter.title}"?`}
-            description="This deletes its questions and attempt history. It can't be undone."
+            description="This deletes its questions. Past attempts stay in History. It can't be undone."
             confirmLabel="Delete chapter"
             destructive
             onConfirm={() => {

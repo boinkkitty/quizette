@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { DrawnQuiz } from '../api/schemas'
-import { clearQuiz, loadQuiz, saveQuizProgress, startQuiz } from './quizSlot'
+import { clearQuiz, clearQuizFrom, loadQuiz, saveQuizProgress, startQuiz } from './quizSlot'
 
 const quiz = (chapterId: string, ids: string[]): DrawnQuiz => ({
   scope: 'chapter',
@@ -68,5 +68,16 @@ describe('quiz slot', () => {
     const got = loadQuiz()
     expect(got?.index).toBe(1)
     expect([...(got?.responses.keys() ?? [])]).toEqual(['q1'])
+  })
+
+  it('deleting a chapter clears a quiz drawn from it and leaves an unrelated quiz alone', () => {
+    startQuiz(quiz('c1', ['q1', 'q2']))
+    saveQuizProgress({ index: 1, responses: new Map([['q1', [0]]]) })
+
+    clearQuizFrom(['c2'])
+    expect(loadQuiz()?.responses.get('q1')).toEqual([0])
+
+    clearQuizFrom(['c3', 'c1'])
+    expect(loadQuiz()).toBeNull()
   })
 })

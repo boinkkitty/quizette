@@ -228,6 +228,37 @@ describe('quiz runner', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
     expect(calls).toBe(2)
   })
+
+  it('can only discard a quiz whose questions were deleted', async () => {
+    serveChapter()
+    server.use(
+      http.post('/api/attempts', () =>
+        HttpResponse.json(
+          { error: 'content_deleted', message: 'some of these questions were deleted' },
+          { status: 409 },
+        ),
+      ),
+    )
+    const u = userEvent.setup()
+    const { router } = renderApp('/chapters/c1')
+    await u.click(await screen.findByRole('button', { name: 'Start quiz' }))
+    for (const name of ['Mitochondria', 'False']) {
+      await u.click(await screen.findByRole('radio', { name }))
+      await u.click(screen.getByRole('button', { name: 'Next' }))
+    }
+    await u.click(screen.getByRole('checkbox', { name: 'Nucleus' }))
+    await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
+
+    expect(
+      await screen.findByText("Some of these questions were deleted, so this quiz can't be saved."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Could not submit')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Submit quiz' })).not.toBeInTheDocument()
+
+    await u.click(screen.getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/quizzes'))
+    expect(window.sessionStorage.length).toBe(0)
+  })
 })
 
 describe('session', () => {

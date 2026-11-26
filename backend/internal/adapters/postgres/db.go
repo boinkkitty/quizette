@@ -84,7 +84,7 @@ type beginner interface {
 
 func reposFor(q *sqlcgen.Queries, db beginner) app.Repos {
 	return app.Repos{
-		Topics:       topicRepo{q},
+		Topics:       topicRepo{q, db},
 		Chapters:     chapterRepo{q},
 		Jobs:         jobRepo{q},
 		QuestionSets: setRepo{q, db},

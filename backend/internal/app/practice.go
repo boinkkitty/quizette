@@ -15,19 +15,23 @@ func isNotFound(err error) bool { return errors.Is(err, domain.ErrNotFound) }
 type PracticeService struct{ Deps }
 
 // ScopedQuestion is a question with the chapter it comes from, so a topic quiz's
-// questions can be grouped by chapter.
+// questions can be grouped by chapter. ChapterDeleted is set when that chapter is
+// deleted, which only a past attempt can show.
 type ScopedQuestion struct {
 	domain.Question
-	ChapterID    domain.ID
-	ChapterTitle string
+	ChapterID      domain.ID
+	ChapterTitle   string
+	ChapterDeleted bool
 }
 
 // AttemptView is an attempt with its drawn questions in draw order. ScopeName is the
-// chapter's title or the topic's name, according to the attempt scope.
+// chapter's title or the topic's name, according to the attempt scope, and
+// ScopeDeleted reports whether that chapter or topic is deleted.
 type AttemptView struct {
-	Attempt   domain.Attempt
-	ScopeName string
-	Questions []ScopedQuestion
+	Attempt      domain.Attempt
+	ScopeName    string
+	ScopeDeleted bool
+	Questions    []ScopedQuestion
 }
 
 // DrawnQuiz is a fresh draw of questions for an unfinished quiz. Nothing is
@@ -41,9 +45,10 @@ type DrawnQuiz struct {
 
 // scopePool is what an attempt scope draws from, with the names to display.
 type scopePool struct {
-	name   string
-	pool   domain.Pool
-	titles map[domain.ID]string // chapter ID to title
+	name    string
+	pool    domain.Pool
+	titles  map[domain.ID]string // chapter ID to title
+	deleted map[domain.ID]bool   // chapter ID to whether it is deleted
 }
 
 // loadPool loads the question sets of the scope's ready chapters. A topic's
@@ -85,7 +90,14 @@ func (s *PracticeService) loadPool(ctx context.Context, ownerID domain.ID, scope
 	default:
 		return scopePool{}, domain.Invalid("scope must be a chapter or a topic")
 	}
-	out := scopePool{name: name, titles: make(map[domain.ID]string, len(chapters))}
+	out, err := s.poolOf(ctx, chapters)
+	out.name = name
+	return out, err
+}
+
+// poolOf loads the question sets of chapters, in order.
+func (s *PracticeService) poolOf(ctx context.Context, chapters []domain.Chapter) (scopePool, error) {
+	out := scopePool{titles: make(map[domain.ID]string, len(chapters)), deleted: make(map[domain.ID]bool, len(chapters))}
 	for _, ch := range chapters {
 		set, err := s.Repos.QuestionSets.GetByChapter(ctx, ch.ID)
 		if err != nil {
@@ -93,6 +105,7 @@ func (s *PracticeService) loadPool(ctx context.Context, ownerID domain.ID, scope
 		}
 		out.pool = append(out.pool, set)
 		out.titles[ch.ID] = ch.Title
+		out.deleted[ch.ID] = ch.DeletedAt != nil
 	}
 	return out, nil
 }
@@ -106,7 +119,7 @@ func (p scopePool) questions(ids []domain.ID) []ScopedQuestion {
 			continue
 		}
 		ch, _ := p.pool.ChapterOf(id)
-		out = append(out, ScopedQuestion{Question: q, ChapterID: ch, ChapterTitle: p.titles[ch]})
+		out = append(out, ScopedQuestion{Question: q, ChapterID: ch, ChapterTitle: p.titles[ch], ChapterDeleted: p.deleted[ch]})
 	}
 	return out
 }
@@ -128,7 +141,12 @@ func (s *PracticeService) DrawQuiz(ctx context.Context, ownerID domain.ID, scope
 // SubmitQuiz grades a finished quiz over questionIDs (as drawn, in draw order) and
 // records it as an attempt. The questions must belong to the scope's ready chapters
 // and their count must pass the count rule; responses for other questions are rejected.
+// It fails with domain.ErrDeletedContent if any question's chapter was deleted since
+// the draw, including questions that no longer exist or that the user doesn't own.
 func (s *PracticeService) SubmitQuiz(ctx context.Context, ownerID domain.ID, scope domain.AttemptScope, questionIDs []domain.ID, responses map[domain.ID][]int) (AttemptView, error) {
+	if err := s.checkNotDeleted(ctx, ownerID, questionIDs); err != nil {
+		return AttemptView{}, err
+	}
 	p, err := s.loadPool(ctx, ownerID, scope)
 	if err != nil {
 		return AttemptView{}, err
@@ -146,17 +164,53 @@ func (s *PracticeService) SubmitQuiz(ctx context.Context, ownerID domain.ID, sco
 	return AttemptView{Attempt: a, ScopeName: p.name, Questions: p.questions(a.QuestionIDs)}, nil
 }
 
-// GetAttempt returns one attempt.
+// checkNotDeleted fails with domain.ErrDeletedContent unless every question is in one
+// of the user's chapters that is not deleted.
+func (s *PracticeService) checkNotDeleted(ctx context.Context, ownerID domain.ID, questionIDs []domain.ID) error {
+	chapters, err := s.Repos.Chapters.ListByQuestions(ctx, ownerID, questionIDs)
+	if err != nil {
+		return err
+	}
+	p, err := s.poolOf(ctx, chapters)
+	if err != nil {
+		return err
+	}
+	for _, id := range questionIDs {
+		ch, ok := p.pool.ChapterOf(id)
+		if !ok || p.deleted[ch] {
+			return domain.ErrDeletedContent
+		}
+	}
+	return nil
+}
+
+// GetAttempt returns one attempt with its questions, including those of chapters
+// deleted since it was submitted.
 func (s *PracticeService) GetAttempt(ctx context.Context, ownerID, attemptID domain.ID) (AttemptView, error) {
 	a, err := s.Repos.Attempts.Get(ctx, ownerID, attemptID)
 	if err != nil {
 		return AttemptView{}, err
 	}
-	p, err := s.loadPool(ctx, ownerID, a.Scope)
+	chapters, err := s.Repos.Chapters.ListByQuestions(ctx, ownerID, a.QuestionIDs)
 	if err != nil {
 		return AttemptView{}, err
 	}
-	return AttemptView{Attempt: a, ScopeName: p.name, Questions: p.questions(a.QuestionIDs)}, nil
+	p, err := s.poolOf(ctx, chapters)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	v := AttemptView{Attempt: a, Questions: p.questions(a.QuestionIDs)}
+	switch a.Scope.Type {
+	case domain.ScopeChapter:
+		v.ScopeName, v.ScopeDeleted = p.titles[a.Scope.ID], p.deleted[a.Scope.ID]
+	case domain.ScopeTopic:
+		t, err := s.Repos.Topics.GetIncludingDeleted(ctx, ownerID, a.Scope.ID)
+		if err != nil {
+			return AttemptView{}, err
+		}
+		v.ScopeName, v.ScopeDeleted = t.Name, t.DeletedAt != nil
+	}
+	return v, nil
 }
 
 // ListChapterAttempts returns the chapter's chapter-scoped attempt history, newest first.

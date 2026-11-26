@@ -85,7 +85,7 @@ func (r topicRepo) Create(_ context.Context, t domain.Topic) error {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
 	for _, o := range r.s.topics {
-		if o.OwnerID == t.OwnerID && strings.EqualFold(o.Name, t.Name) {
+		if o.OwnerID == t.OwnerID && o.DeletedAt == nil && strings.EqualFold(o.Name, t.Name) {
 			return fmt.Errorf("topic name taken: %w", domain.ErrConflict)
 		}
 	}
@@ -93,7 +93,15 @@ func (r topicRepo) Create(_ context.Context, t domain.Topic) error {
 	return nil
 }
 
-func (r topicRepo) Get(_ context.Context, owner, id domain.ID) (domain.Topic, error) {
+func (r topicRepo) Get(ctx context.Context, owner, id domain.ID) (domain.Topic, error) {
+	t, err := r.GetIncludingDeleted(ctx, owner, id)
+	if err != nil || t.DeletedAt != nil {
+		return domain.Topic{}, notFound("topic")
+	}
+	return t, nil
+}
+
+func (r topicRepo) GetIncludingDeleted(_ context.Context, owner, id domain.ID) (domain.Topic, error) {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
 	t, ok := r.s.topics[id]
@@ -107,7 +115,7 @@ func (r topicRepo) GetByName(_ context.Context, owner domain.ID, name string) (d
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
 	for _, t := range r.s.topics {
-		if t.OwnerID == owner && strings.EqualFold(t.Name, name) {
+		if t.OwnerID == owner && t.DeletedAt == nil && strings.EqualFold(t.Name, name) {
 			return t, nil
 		}
 	}
@@ -119,12 +127,12 @@ func (r topicRepo) List(_ context.Context, owner domain.ID) ([]app.TopicSummary,
 	defer r.s.mu.Unlock()
 	var out []app.TopicSummary
 	for _, t := range r.s.topics {
-		if t.OwnerID != owner {
+		if t.OwnerID != owner || t.DeletedAt != nil {
 			continue
 		}
 		n := 0
 		for _, c := range r.s.chapters {
-			if c.TopicID == t.ID {
+			if c.TopicID == t.ID && c.DeletedAt == nil {
 				n++
 			}
 		}
@@ -169,6 +177,25 @@ func (r topicRepo) Delete(ctx context.Context, owner, id domain.ID) error {
 	for cid, c := range r.s.chapters {
 		if c.TopicID == id {
 			delete(r.s.chapters, cid)
+			delete(r.s.sets, cid)
+		}
+	}
+	return nil
+}
+
+func (r topicRepo) MarkDeleted(ctx context.Context, owner, id domain.ID, at time.Time) error {
+	if _, err := r.Get(ctx, owner, id); err != nil {
+		return err
+	}
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	t := r.s.topics[id]
+	t.DeletedAt = &at
+	r.s.topics[id] = t
+	for cid, c := range r.s.chapters {
+		if c.TopicID == id && c.DeletedAt == nil {
+			c.DeletedAt = &at
+			r.s.chapters[cid] = c
 		}
 	}
 	return nil
@@ -185,7 +212,7 @@ func (r chapterRepo) Create(_ context.Context, c domain.Chapter) error {
 
 func (r chapterRepo) Get(ctx context.Context, owner, id domain.ID) (domain.Chapter, error) {
 	c, err := r.GetByID(ctx, id)
-	if err != nil || c.OwnerID != owner {
+	if err != nil || c.OwnerID != owner || c.DeletedAt != nil {
 		return domain.Chapter{}, notFound("chapter")
 	}
 	return c, nil
@@ -236,11 +263,12 @@ func maxPct(best *float64, a domain.Attempt) *float64 {
 	return &pct
 }
 
-// chapterSummaries builds summaries for chapters matching keep. The caller holds s.mu.
+// chapterSummaries builds summaries for chapters, not deleted, matching keep. The
+// caller holds s.mu.
 func (s *Store) chapterSummaries(keep func(domain.Chapter) bool) []app.ChapterSummary {
 	var out []app.ChapterSummary
 	for _, c := range s.chapters {
-		if !keep(c) {
+		if c.DeletedAt != nil || !keep(c) {
 			continue
 		}
 		cs := app.ChapterSummary{Chapter: c, TopicName: s.topics[c.TopicID].Name, QuestionCount: s.sets[c.ID].Size()}
@@ -288,6 +316,42 @@ func (r chapterRepo) Delete(ctx context.Context, owner, id domain.ID) error {
 	delete(r.s.chapters, id)
 	delete(r.s.sets, id)
 	return nil
+}
+
+func (r chapterRepo) MarkDeleted(ctx context.Context, owner, id domain.ID, at time.Time) error {
+	if _, err := r.Get(ctx, owner, id); err != nil {
+		return err
+	}
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	c := r.s.chapters[id]
+	c.DeletedAt = &at
+	r.s.chapters[id] = c
+	return nil
+}
+
+func (r chapterRepo) ListByQuestions(_ context.Context, owner domain.ID, questionIDs []domain.ID) ([]domain.Chapter, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	var out []domain.Chapter
+	for _, c := range r.s.chapters {
+		if c.OwnerID == owner && r.s.setHoldsAny(c.ID, questionIDs) {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+// setHoldsAny reports whether the chapter's question set holds any of ids. The caller
+// holds s.mu.
+func (s *Store) setHoldsAny(chapterID domain.ID, ids []domain.ID) bool {
+	set := s.sets[chapterID]
+	for _, id := range ids {
+		if _, ok := set.Question(id); ok {
+			return true
+		}
+	}
+	return false
 }
 
 type jobRepo struct{ s *Store }
@@ -420,6 +484,11 @@ func (r attemptRepo) ListByOwner(_ context.Context, owner domain.ID, limit int) 
 			sum.ChapterTitle, sum.TopicID = ch.Title, ch.TopicID
 		}
 		sum.TopicName = r.s.topics[sum.TopicID].Name
+		if a.Scope.Type == domain.ScopeChapter {
+			sum.ScopeDeleted = r.s.chapters[a.Scope.ID].DeletedAt != nil
+		} else {
+			sum.ScopeDeleted = r.s.topics[a.Scope.ID].DeletedAt != nil
+		}
 		out = append(out, sum)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
@@ -427,6 +496,36 @@ func (r attemptRepo) ListByOwner(_ context.Context, owner domain.ID, limit int) 
 		out = out[:limit]
 	}
 	return out, nil
+}
+
+func (r attemptRepo) ReferencesChapter(_ context.Context, owner, chapterID domain.ID) (bool, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	for _, a := range r.s.attempts {
+		if a.OwnerID == owner && r.s.setHoldsAny(chapterID, a.QuestionIDs) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r attemptRepo) ReferencesTopic(_ context.Context, owner, topicID domain.ID) (bool, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	for _, a := range r.s.attempts {
+		if a.OwnerID != owner {
+			continue
+		}
+		if a.Scope == domain.TopicScope(topicID) {
+			return true, nil
+		}
+		for _, c := range r.s.chapters {
+			if c.TopicID == topicID && r.s.setHoldsAny(c.ID, a.QuestionIDs) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 type userRepo struct{ s *Store }

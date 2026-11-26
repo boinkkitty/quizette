@@ -66,9 +66,23 @@ func (s *LibraryService) RenameTopic(ctx context.Context, ownerID, id domain.ID,
 	return t, s.Repos.Topics.Update(ctx, t)
 }
 
-// DeleteTopic deletes a topic and (by cascade) its chapters.
+// DeleteTopic deletes a topic and (by cascade) its chapters. A topic that an attempt
+// refers to, directly or through one of its chapters, is marked deleted with its
+// chapters instead, so the attempts keep their questions (ADR 0010).
 func (s *LibraryService) DeleteTopic(ctx context.Context, ownerID, id domain.ID) error {
-	return s.Repos.Topics.Delete(ctx, ownerID, id)
+	return s.UoW.Do(ctx, func(r Repos) error {
+		if _, err := r.Topics.Get(ctx, ownerID, id); err != nil {
+			return err
+		}
+		referenced, err := r.Attempts.ReferencesTopic(ctx, ownerID, id)
+		if err != nil {
+			return err
+		}
+		if referenced {
+			return r.Topics.MarkDeleted(ctx, ownerID, id, s.Clock.Now())
+		}
+		return r.Topics.Delete(ctx, ownerID, id)
+	})
 }
 
 // ChapterDetail is a chapter with its latest job and set size.
@@ -117,9 +131,22 @@ func (s *LibraryService) RenameChapter(ctx context.Context, ownerID, id domain.I
 	return c, s.Repos.Chapters.UpdateTitle(ctx, c)
 }
 
-// DeleteChapter deletes a chapter with its set, jobs and attempts.
+// DeleteChapter deletes a chapter with its set and jobs. A chapter that an attempt
+// drew from is marked deleted instead, so the attempt keeps its questions (ADR 0010).
 func (s *LibraryService) DeleteChapter(ctx context.Context, ownerID, id domain.ID) error {
-	return s.Repos.Chapters.Delete(ctx, ownerID, id)
+	return s.UoW.Do(ctx, func(r Repos) error {
+		if _, err := r.Chapters.Get(ctx, ownerID, id); err != nil {
+			return err
+		}
+		referenced, err := r.Attempts.ReferencesChapter(ctx, ownerID, id)
+		if err != nil {
+			return err
+		}
+		if referenced {
+			return r.Chapters.MarkDeleted(ctx, ownerID, id, s.Clock.Now())
+		}
+		return r.Chapters.Delete(ctx, ownerID, id)
+	})
 }
 
 // GetQuestionSet returns a ready chapter's full bank (with answers) for review.

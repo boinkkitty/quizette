@@ -13,6 +13,9 @@ var (
 	ErrConflict          = errors.New("conflict")
 	ErrUnauthorized      = errors.New("unauthorized")
 	ErrInvalidTransition = errors.New("invalid state transition")
+	// ErrDeletedContent means a quiz names questions whose chapter or topic was
+	// deleted while it was being taken, so it can't be saved (ADR 0011).
+	ErrDeletedContent = errors.New("quiz names deleted questions")
 )
 
 // ValidationError lists every rule a value broke. It is returned instead of

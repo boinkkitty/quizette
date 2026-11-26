@@ -10,6 +10,30 @@ import (
 	"time"
 )
 
+const chapterReferenced = `-- name: ChapterReferenced :one
+SELECT EXISTS (
+    SELECT 1 FROM attempt_answers aa
+    JOIN attempts a ON a.id = aa.attempt_id
+    JOIN questions q ON q.id = aa.question_id
+    JOIN question_sets s ON s.id = q.question_set_id
+    WHERE a.owner_id = $1 AND s.chapter_id = $2
+)
+`
+
+type ChapterReferencedParams struct {
+	OwnerID   string
+	ChapterID string
+}
+
+// Whether any of the user's attempts drew a question from the chapter. Every drawn
+// question has an answer row, answered or not, so the answers index finds it.
+func (q *Queries) ChapterReferenced(ctx context.Context, arg ChapterReferencedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, chapterReferenced, arg.OwnerID, arg.ChapterID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createAttempt = `-- name: CreateAttempt :exec
 
 INSERT INTO attempts (id, owner_id, scope, topic_id, chapter_id, requested_count, question_ids, total_score, max_score, started_at, submitted_at)
@@ -177,7 +201,8 @@ func (q *Queries) ListAttemptsByChapter(ctx context.Context, arg ListAttemptsByC
 }
 
 const listAttemptsByOwner = `-- name: ListAttemptsByOwner :many
-SELECT a.id, a.owner_id, a.chapter_id, a.requested_count, a.question_ids, a.total_score, a.max_score, a.started_at, a.submitted_at, a.scope, a.topic_id, coalesce(c.title, '')::text AS chapter_title, t.id AS scope_topic_id, t.name AS topic_name
+SELECT a.id, a.owner_id, a.chapter_id, a.requested_count, a.question_ids, a.total_score, a.max_score, a.started_at, a.submitted_at, a.scope, a.topic_id, coalesce(c.title, '')::text AS chapter_title, t.id AS scope_topic_id, t.name AS topic_name,
+    (CASE WHEN a.scope = 'chapter' THEN c.deleted_at IS NOT NULL ELSE t.deleted_at IS NOT NULL END)::bool AS scope_deleted
 FROM attempts a
 LEFT JOIN chapters c ON c.id = a.chapter_id
 JOIN topics t ON t.id = coalesce(a.topic_id, c.topic_id)
@@ -206,10 +231,12 @@ type ListAttemptsByOwnerRow struct {
 	ChapterTitle   string
 	ScopeTopicID   string
 	TopicName      string
+	ScopeDeleted   bool
 }
 
 // The History page: newest attempts across all scopes, with names for display. A
 // topic attempt has no chapter, so chapter_title is empty and the topic is its own.
+// Deleted chapters and topics are included and flagged by scope_deleted.
 func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwnerParams) ([]ListAttemptsByOwnerRow, error) {
 	rows, err := q.db.Query(ctx, listAttemptsByOwner, arg.OwnerID, arg.Limit)
 	if err != nil {
@@ -234,6 +261,7 @@ func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwn
 			&i.ChapterTitle,
 			&i.ScopeTopicID,
 			&i.TopicName,
+			&i.ScopeDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -243,4 +271,32 @@ func (q *Queries) ListAttemptsByOwner(ctx context.Context, arg ListAttemptsByOwn
 		return nil, err
 	}
 	return items, nil
+}
+
+const topicReferenced = `-- name: TopicReferenced :one
+SELECT (
+    EXISTS (SELECT 1 FROM attempts a WHERE a.owner_id = $1 AND a.topic_id = $2::uuid)
+    OR EXISTS (
+        SELECT 1 FROM attempt_answers aa
+        JOIN attempts a ON a.id = aa.attempt_id
+        JOIN questions q ON q.id = aa.question_id
+        JOIN question_sets s ON s.id = q.question_set_id
+        JOIN chapters c ON c.id = s.chapter_id
+        WHERE a.owner_id = $1 AND c.topic_id = $2::uuid
+    )
+)::bool AS referenced
+`
+
+type TopicReferencedParams struct {
+	OwnerID string
+	TopicID string
+}
+
+// Whether any of the user's attempts is scoped to the topic or drew a question from
+// one of its chapters, deleted or not.
+func (q *Queries) TopicReferenced(ctx context.Context, arg TopicReferencedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, topicReferenced, arg.OwnerID, arg.TopicID)
+	var referenced bool
+	err := row.Scan(&referenced)
+	return referenced, err
 }

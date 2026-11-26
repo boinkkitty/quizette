@@ -80,17 +80,25 @@ type ChapterFilter struct {
 	Status  domain.ChapterStatus
 }
 
-// TopicRepository persists Topics. Create/Update return domain.ErrConflict on a duplicate name.
+// TopicRepository persists Topics. Create/Update return domain.ErrConflict on a duplicate
+// name. Every method except GetIncludingDeleted treats deleted topics as absent.
 type TopicRepository interface {
 	Create(ctx context.Context, t domain.Topic) error
 	Get(ctx context.Context, ownerID, id domain.ID) (domain.Topic, error)
+	// GetIncludingDeleted is Get that also finds a deleted topic, for past attempts.
+	GetIncludingDeleted(ctx context.Context, ownerID, id domain.ID) (domain.Topic, error)
 	GetByName(ctx context.Context, ownerID domain.ID, name string) (domain.Topic, error)
 	List(ctx context.Context, ownerID domain.ID) ([]TopicSummary, error)
 	Update(ctx context.Context, t domain.Topic) error
+	// Delete removes the topic and, by cascade, its chapters.
 	Delete(ctx context.Context, ownerID, id domain.ID) error
+	// MarkDeleted marks the topic and its chapters deleted at the given time, keeping
+	// them and their sets.
+	MarkDeleted(ctx context.Context, ownerID, id domain.ID, at time.Time) error
 }
 
-// ChapterRepository persists Chapters.
+// ChapterRepository persists Chapters. Every method except GetByID and ListByQuestions
+// treats deleted chapters as absent.
 type ChapterRepository interface {
 	Create(ctx context.Context, c domain.Chapter) error
 	Get(ctx context.Context, ownerID, id domain.ID) (domain.Chapter, error)
@@ -104,7 +112,13 @@ type ChapterRepository interface {
 	// overwrite each other's change with a stale copy.
 	UpdateTitle(ctx context.Context, c domain.Chapter) error
 	UpdateStatus(ctx context.Context, c domain.Chapter) error
+	// Delete removes the chapter with its set and jobs.
 	Delete(ctx context.Context, ownerID, id domain.ID) error
+	// MarkDeleted marks the chapter deleted at the given time, keeping it and its set.
+	MarkDeleted(ctx context.Context, ownerID, id domain.ID, at time.Time) error
+	// ListByQuestions returns the user's chapters, deleted or not, whose question sets
+	// hold any of questionIDs, in no particular order.
+	ListByQuestions(ctx context.Context, ownerID domain.ID, questionIDs []domain.ID) ([]domain.Chapter, error)
 }
 
 // ProcessingJobRepository persists ProcessingJobs.
@@ -124,12 +138,14 @@ type QuestionSetRepository interface {
 }
 
 // AttemptSummary is an Attempt with the names needed by an owner-wide history list.
-// ChapterTitle is empty for a topic-scoped attempt. Answers are not loaded.
+// ChapterTitle is empty for a topic-scoped attempt. ScopeDeleted reports whether the
+// attempt's chapter or topic is deleted. Answers are not loaded.
 type AttemptSummary struct {
 	domain.Attempt
 	ChapterTitle string
 	TopicID      domain.ID
 	TopicName    string
+	ScopeDeleted bool
 }
 
 // AttemptRepository persists Attempts.
@@ -141,6 +157,12 @@ type AttemptRepository interface {
 	ListByChapter(ctx context.Context, ownerID, chapterID domain.ID) ([]domain.Attempt, error)
 	// ListByOwner returns at most limit of the user's attempts across all scopes, newest first.
 	ListByOwner(ctx context.Context, ownerID domain.ID, limit int) ([]AttemptSummary, error)
+	// ReferencesChapter reports whether any of the user's attempts drew a question from
+	// the chapter.
+	ReferencesChapter(ctx context.Context, ownerID, chapterID domain.ID) (bool, error)
+	// ReferencesTopic reports whether any of the user's attempts is scoped to the topic
+	// or drew a question from one of its chapters, deleted or not.
+	ReferencesTopic(ctx context.Context, ownerID, topicID domain.ID) (bool, error)
 }
 
 // Session is a login session; only the SHA-256 of its token is stored.

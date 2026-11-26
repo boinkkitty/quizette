@@ -69,6 +69,15 @@ export function saveQuizProgress(progress: QuizProgress): void {
   write({ ...stored, index: progress.index, responses: Object.fromEntries(progress.responses) })
 }
 
+/**
+ * Clears the slot if its quiz drew from any of chapterIds, which this tab just deleted:
+ * the quiz could no longer be submitted (ADR 0011). Deleting a topic passes its chapters.
+ */
+export function clearQuizFrom(chapterIds: readonly string[]): void {
+  const stored = read()
+  if (stored !== null && chapterIds.includes(stored.quiz.chapterId)) clearQuiz()
+}
+
 export function clearQuiz(): void {
   try {
     window.sessionStorage.removeItem(key)

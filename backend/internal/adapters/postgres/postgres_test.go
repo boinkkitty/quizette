@@ -226,13 +226,55 @@ func TestRepositoriesFullFlow(t *testing.T) {
 		t.Fatalf("chapter after recovery: %s", ch.Chapter.Status)
 	}
 
-	// Cascade delete removes the chapter's set, jobs and attempts.
+	// Deleting a topic that attempts refer to keeps it and its chapters as deleted
+	// (ADR 0010): hidden, but the attempts keep their questions.
 	if err := lib.DeleteTopic(ctx, u.ID, res.TopicID); err != nil {
 		t.Fatal(err)
 	}
-	var n int
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM questions").Scan(&n); err != nil || n != 0 {
-		t.Fatalf("questions after cascade: %d %v", n, err)
+	if topics, err := lib.ListTopics(ctx, u.ID); err != nil || len(topics) != 0 {
+		t.Fatalf("topics after delete: %v %+v", err, topics)
+	}
+	if _, err := lib.GetChapter(ctx, u.ID, res.ChapterID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("chapter of deleted topic: %v", err)
+	}
+	kept, err := prac.GetAttempt(ctx, u.ID, tv.Attempt.ID)
+	if err != nil || !kept.ScopeDeleted || kept.ScopeName != "Biology" || len(kept.Questions) != 10 || !kept.Questions[0].ChapterDeleted {
+		t.Fatalf("topic attempt after delete: %v %+v", err, kept)
+	}
+	if hist, err := prac.ListAttempts(ctx, u.ID); err != nil || len(hist) != 3 || !hist[0].ScopeDeleted || !hist[1].ScopeDeleted {
+		t.Fatalf("history after delete: %v %+v", err, hist)
+	}
+	if _, err := prac.SubmitQuiz(ctx, u.ID, topicScope, tdrawn, nil); !errors.Is(err, domain.ErrDeletedContent) {
+		t.Fatalf("submit naming deleted questions: %v", err)
+	}
+
+	// The name is free again, and a topic no attempt refers to is removed with its questions.
+	fresh, err := lib.CreateTopic(ctx, u.ID, "biology")
+	if err != nil {
+		t.Fatalf("reuse deleted topic's name: %v", err)
+	}
+	if _, err := lib.CreateTopic(ctx, u.ID, "Biology"); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("duplicate of a live topic's name: %v", err)
+	}
+	var before, after int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM questions").Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	queue.Handler = gen.ProcessJob
+	if _, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, TopicID: fresh.ID, Count: 5, Filename: "c.pdf", Data: []byte("%PDF-1.4 c")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM questions").Scan(&after); err != nil || after != before+5 {
+		t.Fatalf("questions after uploading to the new topic: %d, want %d (%v)", after, before+5, err)
+	}
+	if err := lib.DeleteTopic(ctx, u.ID, fresh.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM questions").Scan(&after); err != nil || after != before {
+		t.Fatalf("questions after removing an unreferenced topic: %d, want %d (%v)", after, before, err)
+	}
+	if _, err := store.Repos().Topics.GetIncludingDeleted(ctx, u.ID, fresh.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unreferenced topic was kept: %v", err)
 	}
 }
 

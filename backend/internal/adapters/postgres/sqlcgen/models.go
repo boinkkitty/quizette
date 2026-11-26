@@ -38,6 +38,7 @@ type Chapter struct {
 	Title     string
 	Status    string
 	CreatedAt time.Time
+	DeletedAt *time.Time
 }
 
 type OauthAccount struct {
@@ -105,6 +106,7 @@ type Topic struct {
 	OwnerID   string
 	Name      string
 	CreatedAt time.Time
+	DeletedAt *time.Time
 }
 
 type User struct {
