@@ -5,16 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Attempt } from '../api/schemas'
 import { renderApp } from './app'
-import {
-  attempt,
-  chapter,
-  chapterSummary,
-  drawnQuiz,
-  historyItem,
-  server,
-  unauthorized,
-  user,
-} from './server'
+import { attempt, chapter, drawnQuiz, historyItem, server, unauthorized, user } from './server'
 
 describe('routing', () => {
   it('redirects logged-out users to login, preserving the destination', async () => {
@@ -311,77 +302,6 @@ describe('sidebar', () => {
   })
 })
 
-describe('quizzes', () => {
-  it("shows topic cards counting ready chapters, then the topic's ready chapters", async () => {
-    const requested: string[] = []
-    server.use(
-      http.get('/api/topics', () =>
-        HttpResponse.json([
-          { id: 't1', name: 'Biology', chapterCount: 3, createdAt: '2026-11-20T10:00:00Z' },
-          { id: 't2', name: 'History', chapterCount: 1, createdAt: '2026-11-20T10:00:00Z' },
-        ]),
-      ),
-      http.get('/api/chapters', ({ request }) => {
-        const url = new URL(request.url)
-        requested.push(url.search)
-        // The server filters; return what it would for each query.
-        if (url.searchParams.get('topicId') === 't1') {
-          return HttpResponse.json([
-            chapterSummary(),
-            chapterSummary({ id: 'c2', title: 'Genetics', bestScorePct: null }),
-          ])
-        }
-        return HttpResponse.json([
-          chapterSummary(),
-          chapterSummary({ id: 'c2', title: 'Genetics', bestScorePct: null }),
-          chapterSummary({
-            id: 'c3',
-            topicId: 't2',
-            topicName: 'History',
-            title: 'Rome',
-            bestScorePct: null,
-          }),
-        ])
-      }),
-    )
-    const u = userEvent.setup()
-    const { router } = renderApp('/quizzes')
-    const main = await screen.findByRole('main')
-    const biology = await within(main).findByRole('link', { name: /Biology/ })
-    expect(biology).toHaveTextContent('2 chapters')
-    expect(within(main).getByRole('link', { name: /History/ })).toHaveTextContent('1 chapter')
-    expect(within(main).queryByRole('link', { name: /Start quiz/ })).not.toBeInTheDocument()
-
-    await u.click(biology)
-    expect(await screen.findByRole('heading', { name: 'Biology' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/quizzes/t1')
-    expect(screen.getByText(/10 questions · 2 attempts · best 80%/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Start quiz: Cells' })).toHaveAttribute(
-      'href',
-      '/chapters/c1',
-    )
-    expect(screen.getByRole('link', { name: 'View questions: Cells' })).toHaveAttribute(
-      'href',
-      '/chapters/c1/questions',
-    )
-    expect(screen.getByRole('link', { name: 'Start quiz: Genetics' })).toBeInTheDocument()
-    // Only ready chapters are ever requested.
-    expect(requested).toEqual(['?status=ready', '?status=ready&topicId=t1'])
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    expect(within(nav).getByRole('link', { name: 'Quizzes' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-  })
-
-  it('points to upload when no chapters are ready', async () => {
-    server.use(http.get('/api/chapters', () => HttpResponse.json([])))
-    renderApp('/quizzes')
-    expect(await screen.findByText('No quizzes yet')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Upload a PDF' })).toHaveAttribute('href', '/upload')
-  })
-})
-
 describe('view questions', () => {
   it('walks through the bank and reveals each answer only on request', async () => {
     const questions = attempt().questions.map((q) => ({
@@ -444,7 +364,7 @@ describe('view questions', () => {
       .filter((o) => within(o).queryByText('Correct') !== null)
       .map((o) => o.textContent)
     expect(marked).toEqual(['NucleusCorrect', 'RibosomeCorrect'])
-    expect(screen.getByRole('link', { name: 'Done' })).toHaveAttribute('href', '/quizzes/t1')
+    expect(screen.getByRole('link', { name: 'Done' })).toHaveAttribute('href', '/chapters/c1')
 
     // Going back keeps question 1 revealed; hiding works too.
     await u.click(screen.getByRole('button', { name: 'Previous' }))

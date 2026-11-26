@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 import { useSubmitQuiz } from '../../../api/queries'
+import { scopeRef, scopeTitle } from '../../../api/schemas'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ErrorMessage } from '../../../components/ErrorMessage'
 import { PageHeader } from '../../../components/PageHeader'
@@ -33,7 +34,7 @@ function RunQuiz({ saved }: { saved: NonNullable<ReturnType<typeof loadQuiz>> })
   return (
     <>
       <PageHeader
-        title={quiz.chapterTitle}
+        title={scopeTitle(quiz)}
         subtitle={`${String(quiz.questions.length)}-question quiz`}
         actions={
           <ConfirmDialog
@@ -49,7 +50,7 @@ function RunQuiz({ saved }: { saved: NonNullable<ReturnType<typeof loadQuiz>> })
             destructive
             onConfirm={() => {
               clearQuiz()
-              void navigate({ to: '/quizzes', search: { chapterId: quiz.chapterId } })
+              void navigate({ to: '/quizzes', search: scopeRef(quiz) })
             }}
           />
         }

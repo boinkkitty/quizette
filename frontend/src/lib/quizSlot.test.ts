@@ -4,6 +4,7 @@ import type { DrawnQuiz } from '../api/schemas'
 import { clearQuiz, loadQuiz, saveQuizProgress, startQuiz } from './quizSlot'
 
 const quiz = (chapterId: string, ids: string[]): DrawnQuiz => ({
+  scope: 'chapter',
   chapterId,
   chapterTitle: `Chapter ${chapterId}`,
   questions: ids.map((id, position) => ({
@@ -40,7 +41,7 @@ describe('quiz slot', () => {
     startQuiz(quiz('c2', ['q1', 'q9']))
 
     const got = loadQuiz()
-    expect(got?.quiz.chapterId).toBe('c2')
+    expect(got?.quiz).toMatchObject({ chapterId: 'c2' })
     expect(got?.index).toBe(0)
     expect(got?.responses.size).toBe(0)
   })

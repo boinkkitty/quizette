@@ -64,13 +64,11 @@ test('upload a PDF, take a quiz with partial MRQ credit, see history', async ({ 
   // The sidebar's Quizzes and History pages list the chapter and the attempt.
   const nav = page.getByRole('navigation', { name: 'Main' })
   await nav.getByRole('link', { name: 'Quizzes' }).click()
-  await page.getByRole('main').getByRole('link', { name: /Biology/ }).click()
-  await expect(page.getByRole('heading', { name: 'Biology' })).toBeVisible()
-  await expect(page.getByText(/10 questions · 1 attempts · best \d+%/)).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Start quiz: Cells' })).toBeVisible()
+  await page.getByRole('main').getByRole('button', { name: /Biology/ }).click()
+  await expect(page.getByRole('button', { name: /Cells/ })).toContainText(/1 quiz · best \d+%/)
 
   // View questions: walk the whole bank with answers hidden until asked for.
-  await page.getByRole('link', { name: 'View questions: Cells' }).click()
+  await page.goto(`${chapterURL}/questions`)
   await expect(page.getByText('Question 1 of 10')).toBeVisible()
   await expect(page.getByRole('radio')).toHaveCount(0)
   await page.getByRole('button', { name: 'Show answer' }).click()

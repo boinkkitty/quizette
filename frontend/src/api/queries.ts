@@ -7,6 +7,8 @@ import {
   type ChapterStatus,
   type DrawnQuiz,
   drawnQuizSchema,
+  type ScopeRef,
+  scopeRef,
   attemptHistoryItemSchema,
   attemptSchema,
   attemptSummarySchema,
@@ -201,11 +203,11 @@ export function useUpload() {
   })
 }
 
-/** Draws a quiz from a chapter. Nothing is stored on the server until it is submitted. */
-export function useDrawQuiz(chapterId: string) {
+/** Draws a quiz from a chapter or a whole topic. Nothing is stored on the server until it is submitted. */
+export function useDrawQuiz() {
   return useMutation({
-    mutationFn: (count: number) =>
-      request(drawnQuizSchema, '/quizzes/draw', { method: 'POST', json: { chapterId, count } }),
+    mutationFn: ({ scope, count }: { scope: ScopeRef; count: number }) =>
+      request(drawnQuizSchema, '/quizzes/draw', { method: 'POST', json: { ...scope, count } }),
   })
 }
 
@@ -217,15 +219,18 @@ export function useSubmitQuiz(quiz: DrawnQuiz) {
       request(attemptSchema, '/attempts', {
         method: 'POST',
         json: {
-          chapterId: quiz.chapterId,
+          ...scopeRef(quiz),
           questionIds: quiz.questions.map((q) => q.id),
           answers: [...answers].map(([questionId, selected]) => ({ questionId, selected })),
         },
       }),
     onSuccess: async (attempt: Attempt) => {
       qc.setQueryData(keys.attempt(attempt.id), attempt)
-      await qc.invalidateQueries({ queryKey: keys.attempts(attempt.chapterId) })
-      await qc.invalidateQueries({ queryKey: keys.chapter(attempt.chapterId) })
+      // Chapter stats count chapter-scoped attempts only (ADR 0010).
+      if (attempt.chapterId !== undefined) {
+        await qc.invalidateQueries({ queryKey: keys.attempts(attempt.chapterId) })
+        await qc.invalidateQueries({ queryKey: keys.chapter(attempt.chapterId) })
+      }
       await qc.invalidateQueries({ queryKey: keys.topics })
       await qc.invalidateQueries({ queryKey: keys.chapterLists })
       await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })
