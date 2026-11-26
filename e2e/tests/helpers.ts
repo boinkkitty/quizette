@@ -35,5 +35,8 @@ export async function uploadSample(page: Page, opts: { topic: string; count: num
   await page.getByRole('button', { name: 'Generate questions' }).click()
   await expect(page.getByText(`Generating ${String(opts.count)} questions`)).toBeVisible()
   await expect(page.getByText('Your question bank is ready')).toBeVisible({ timeout: 30_000 })
-  await page.getByRole('link', { name: 'Go to chapter →' }).click()
+  await page.getByRole('link', { name: 'Go to chapter', exact: true }).click()
+  // Wait for the chapter page, or a following click on the sidebar's Upload can land while
+  // the app is still on /upload and do nothing.
+  await expect(page).toHaveURL(/\/chapters\/[^/]+$/)
 }

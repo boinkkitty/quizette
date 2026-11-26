@@ -10,10 +10,10 @@ test('upload a PDF, take a quiz with partial MRQ credit, see history', async ({ 
   await uploadSample(page, { topic: 'Biology', count: 10, title: 'Cells' })
 
   await expect(page.getByRole('heading', { name: 'Cells' })).toBeVisible()
-  await expect(page.getByText('10 questions in this bank')).toBeVisible()
   const chapterURL = page.url()
-  await page.getByLabel('Number of questions').selectOption('5')
-  await page.getByRole('button', { name: 'Start quiz' }).click()
+  await page.getByRole('link', { name: 'Quiz this chapter' }).click()
+  await page.getByRole('slider', { name: 'Number of questions' }).fill('5')
+  await page.getByRole('button', { name: 'Start 5-question quiz' }).click()
   await expect(page).toHaveURL(/\/quizzes\/run$/)
 
   // Answers question i the stub's way and returns the points it earns.
@@ -52,7 +52,8 @@ test('upload a PDF, take a quiz with partial MRQ credit, see history', async ({ 
 
   // Back from the results skips the finished quiz.
   await page.goBack()
-  await expect(page).toHaveURL(chapterURL)
+  await expect(page).toHaveURL(/\/quizzes\?chapterId=/)
+  await page.goto(chapterURL)
   const history = page.getByRole('table')
   await expect(history.getByRole('row')).toHaveCount(2) // header + 1 attempt
   await expect(history).toContainText(`${String(expected)} / 5`)
@@ -112,7 +113,8 @@ test('a quiz whose chapter was deleted in another tab can only be discarded', as
   await signUp(page)
   await uploadSample(page, { topic: 'Biology', count: 5, title: 'Cells' })
   const chapterURL = page.url()
-  await page.getByRole('button', { name: 'Start quiz' }).click()
+  await page.getByRole('link', { name: 'Quiz this chapter' }).click()
+  await page.getByRole('button', { name: 'Start 5-question quiz' }).click()
   await expect(page).toHaveURL(/\/quizzes\/run$/)
 
   // Another tab of the same session deletes the chapter mid-quiz.

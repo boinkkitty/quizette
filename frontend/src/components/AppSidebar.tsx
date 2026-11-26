@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   BookOpenCheckIcon,
+  FolderIcon,
   HistoryIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
@@ -20,7 +21,7 @@ import { cn } from '@/lib/utils'
 import { meQuery, useLogout } from '../api/queries'
 
 interface NavItem {
-  to: '/' | '/upload' | '/quizzes' | '/history'
+  to: '/' | '/upload' | '/topics' | '/quizzes' | '/history'
   label: string
   icon: LucideIcon
   /** Match only the exact path (the dashboard is `/`, which prefixes everything). */
@@ -32,6 +33,7 @@ interface NavItem {
 const navItems: readonly NavItem[] = [
   { to: '/upload', label: 'Upload', icon: UploadIcon, primary: true },
   { to: '/', label: 'Dashboard', icon: LayoutDashboardIcon, exact: true },
+  { to: '/topics', label: 'Topics', icon: FolderIcon },
   { to: '/quizzes', label: 'Quizzes', icon: ListChecksIcon },
   { to: '/history', label: 'History', icon: HistoryIcon },
 ]

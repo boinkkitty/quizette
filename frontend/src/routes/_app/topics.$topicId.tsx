@@ -27,8 +27,8 @@ function TopicPage() {
       <PageHeader
         title={data.topic.name}
         subtitle={
-          <Link to="/" className="hover:text-primary hover:underline">
-            ← All topics
+          <Link to="/topics" className="hover:text-primary hover:underline">
+            ← Topics
           </Link>
         }
         actions={
@@ -49,23 +49,37 @@ function TopicPage() {
                   {
                     onSuccess: () => {
                       toast.success(`Deleted "${data.topic.name}"`)
-                      void navigate({ to: '/' })
+                      void navigate({ to: '/topics' })
                     },
                     onError: () => toast.error('Could not delete the topic. Please try again.'),
                   },
                 )
               }}
             />
-            <Button size="lg" asChild>
+            <Button variant="outline" size="lg" asChild>
               <Link to="/upload" search={{ topicId }}>
                 Add chapter
+              </Link>
+            </Button>
+            <Button size="lg" asChild>
+              <Link to="/quizzes" search={{ topicId }}>
+                Quiz this topic
               </Link>
             </Button>
           </div>
         }
       />
       {data.chapters.length === 0 ? (
-        <EmptyState title="No chapters in this topic yet" />
+        <EmptyState title="No chapters in this topic yet">
+          <Link
+            to="/upload"
+            search={{ topicId }}
+            className="font-medium text-primary hover:underline"
+          >
+            Upload a PDF
+          </Link>{' '}
+          to add its first chapter.
+        </EmptyState>
       ) : (
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
           {data.chapters.map((c) => (

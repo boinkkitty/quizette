@@ -1,33 +1,21 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { CircleAlertIcon } from 'lucide-react'
-import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 
-import {
-  attemptsQuery,
-  chapterQuery,
-  questionSetQuery,
-  useDeleteChapter,
-  useDrawQuiz,
-} from '../../../api/queries'
-import type { Chapter } from '../../../api/schemas'
+import { attemptsQuery, chapterQuery, useDeleteChapter } from '../../../api/queries'
 import { ErrorMessage } from '../../../components/ErrorMessage'
 import { JobProgress } from '../../../components/JobProgress'
-import { QuestionReview } from '../../../components/QuestionReview'
 import { StatusBadge } from '../../../components/StatusBadge'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { EmptyState } from '../../../components/EmptyState'
-import { Field } from '../../../components/Field'
 import { PageHeader } from '../../../components/PageHeader'
 import { Spinner } from '../../../components/Spinner'
-import { countOptions, formatDate, formatPct, formatPoints } from '../../../lib/format'
-import { startQuiz } from '../../../lib/quizSlot'
+import { formatDate, formatPct, formatPoints } from '../../../lib/format'
 
 export const Route = createFileRoute('/_app/chapters/$chapterId/')({
   loader: ({ context, params }) =>
@@ -58,26 +46,42 @@ function ChapterPage() {
           </span>
         }
         actions={
-          <ConfirmDialog
-            trigger={
-              <Button variant="destructive" size="lg" disabled={del.isPending}>
-                Delete chapter
-              </Button>
-            }
-            title={`Delete "${chapter.title}"?`}
-            description="This deletes its questions. Past attempts stay in History. It can't be undone."
-            confirmLabel="Delete chapter"
-            destructive
-            onConfirm={() => {
-              del.mutate(chapterId, {
-                onSuccess: () => {
-                  toast.success(`Deleted "${chapter.title}"`)
-                  void navigate({ to: '/topics/$topicId', params: { topicId: chapter.topicId } })
-                },
-                onError: () => toast.error('Could not delete the chapter. Please try again.'),
-              })
-            }}
-          />
+          <div className="flex flex-wrap gap-2">
+            <ConfirmDialog
+              trigger={
+                <Button variant="destructive" size="lg" disabled={del.isPending}>
+                  Delete chapter
+                </Button>
+              }
+              title={`Delete "${chapter.title}"?`}
+              description="This deletes its questions. Past attempts stay in History. It can't be undone."
+              confirmLabel="Delete chapter"
+              destructive
+              onConfirm={() => {
+                del.mutate(chapterId, {
+                  onSuccess: () => {
+                    toast.success(`Deleted "${chapter.title}"`)
+                    void navigate({ to: '/topics/$topicId', params: { topicId: chapter.topicId } })
+                  },
+                  onError: () => toast.error('Could not delete the chapter. Please try again.'),
+                })
+              }}
+            />
+            {chapter.status === 'ready' && (
+              <>
+                <Button variant="outline" size="lg" asChild>
+                  <Link to="/chapters/$chapterId/questions" params={{ chapterId }}>
+                    View questions
+                  </Link>
+                </Button>
+                <Button size="lg" asChild>
+                  <Link to="/quizzes" search={{ chapterId }}>
+                    Quiz this chapter
+                  </Link>
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
       {chapter.status === 'pending' && chapter.latestJob !== null && (
@@ -103,78 +107,8 @@ function ChapterPage() {
           </AlertDescription>
         </Alert>
       )}
-      {chapter.status === 'ready' && <ReadyChapter chapter={chapter} />}
+      {chapter.status === 'ready' && <AttemptHistory chapterId={chapter.id} />}
     </>
-  )
-}
-
-function ReadyChapter({ chapter }: { chapter: Chapter }) {
-  const navigate = useNavigate()
-  const start = useDrawQuiz()
-  const options = countOptions(chapter.questionCount)
-  const [count, setCount] = useState(Math.min(10, chapter.questionCount))
-  const [reviewing, setReviewing] = useState(false)
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <Card className="h-fit lg:col-span-1">
-        <CardHeader>
-          <CardTitle>
-            <h2 className="font-semibold">Start a quiz</h2>
-          </CardTitle>
-          <CardDescription>
-            {chapter.questionCount} questions in this bank. Each quiz draws its questions at random.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Field label="Number of questions">
-            {(c) => (
-              <NativeSelect
-                className="w-full"
-                {...c}
-                value={count}
-                onChange={(e) => setCount(Number(e.target.value))}
-              >
-                {options.map((n) => (
-                  <NativeSelectOption key={n} value={n}>
-                    {n}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            )}
-          </Field>
-          {start.isError && <ErrorMessage error={start.error} title="Could not start quiz" />}
-          <Button
-            size="lg"
-            className="w-full"
-            disabled={start.isPending}
-            onClick={() => {
-              start.mutate(
-                { scope: { chapterId: chapter.id }, count },
-                {
-                  onSuccess: (quiz) => {
-                    startQuiz(quiz)
-                    void navigate({ to: '/quizzes/run' })
-                  },
-                },
-              )
-            }}
-          >
-            {start.isPending && <Spinner />} Start quiz
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="space-y-6 lg:col-span-2">
-        <AttemptHistory chapterId={chapter.id} />
-        <div>
-          <Button variant="outline" size="lg" onClick={() => setReviewing((r) => !r)}>
-            {reviewing ? 'Hide question bank' : 'Review question bank'}
-          </Button>
-          {reviewing && <QuestionBank chapterId={chapter.id} />}
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -224,20 +158,5 @@ function AttemptHistory({ chapterId }: { chapterId: string }) {
         </tbody>
       </table>
     </Card>
-  )
-}
-
-function QuestionBank({ chapterId }: { chapterId: string }) {
-  const { data, error, isPending } = useQuery(questionSetQuery(chapterId))
-  if (isPending) return <Spinner className="mt-4" />
-  if (error !== null) return <ErrorMessage error={error} />
-  return (
-    <ol className="mt-4 space-y-4">
-      {data.questions.map((q, i) => (
-        <li key={q.id}>
-          <QuestionReview index={i} question={q} />
-        </li>
-      ))}
-    </ol>
   )
 }
