@@ -109,3 +109,32 @@ test("users cannot see each other's chapters", async ({ browser }) => {
   await expect(eve.getByText("We couldn't find that")).toBeVisible()
   await expect(eve.getByRole('heading', { name: 'Your topics' })).toHaveCount(0)
 })
+
+test('a quiz whose chapter was deleted in another tab can only be discarded', async ({ page, context }) => {
+  await signUp(page)
+  await uploadSample(page, { topic: 'Biology', count: 5, title: 'Cells' })
+  const chapterURL = page.url()
+  await page.getByRole('button', { name: 'Start quiz' }).click()
+  await expect(page).toHaveURL(/\/quizzes\/run$/)
+
+  // Another tab of the same session deletes the chapter mid-quiz.
+  const other = await context.newPage()
+  await other.goto(chapterURL)
+  await other.getByRole('button', { name: 'Delete chapter' }).click()
+  await other.getByRole('alertdialog').getByRole('button', { name: 'Delete chapter' }).click()
+  await expect(other.getByRole('heading', { name: 'Biology' })).toBeVisible()
+  await other.close()
+
+  for (let i = 0; i < 5; i++) {
+    await expect(page.getByText(`Question ${String(i + 1)} of 5`)).toBeVisible()
+    if (i < 4) await page.getByRole('button', { name: 'Next' }).click()
+  }
+  await page.getByRole('button', { name: 'Submit quiz' }).click()
+  await page.getByRole('button', { name: 'Submit anyway' }).click()
+
+  await expect(page.getByText("Some of these questions were deleted, so this quiz can't be saved.")).toBeVisible()
+  await page.getByRole('button', { name: 'Discard' }).click()
+  await expect(page).toHaveURL(/\/quizzes$/)
+  await page.goto('/quizzes/run')
+  await expect(page).toHaveURL(/\/quizzes$/) // the slot is empty
+})

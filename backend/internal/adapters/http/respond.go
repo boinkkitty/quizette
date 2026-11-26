@@ -36,6 +36,8 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, http.StatusBadRequest, errorBody{Error: "validation", Message: strings.Join(ve.Problems, "; "), Problems: ve.Problems})
 	case errors.Is(err, domain.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{Error: "not_found", Message: "not found"})
+	case errors.Is(err, domain.ErrDeletedContent):
+		writeJSON(w, http.StatusConflict, errorBody{Error: "content_deleted", Message: "some of these questions were deleted"})
 	case errors.Is(err, domain.ErrConflict):
 		writeJSON(w, http.StatusConflict, errorBody{Error: "conflict", Message: publicMessage(err, "conflict")})
 	case errors.Is(err, domain.ErrUnauthorized):

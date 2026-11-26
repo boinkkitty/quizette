@@ -3,8 +3,10 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 
+import { isApiError } from '../../../api/client'
 import { useSubmitQuiz } from '../../../api/queries'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { EmptyState } from '../../../components/EmptyState'
 import { ErrorMessage } from '../../../components/ErrorMessage'
 import { PageHeader } from '../../../components/PageHeader'
 import { QuizRunner } from '../../../components/QuizRunner'
@@ -29,6 +31,28 @@ function RunQuiz({ saved }: { saved: NonNullable<ReturnType<typeof loadQuiz>> })
   const { quiz } = saved
   const submit = useSubmitQuiz(quiz)
   const navigate = useNavigate()
+  // Its chapter was deleted in another tab, so the server can't save it (ADR 0011).
+  const deleted = isApiError(submit.error) && submit.error.code === 'content_deleted'
+
+  if (deleted) {
+    return (
+      <>
+        <PageHeader title={quiz.chapterTitle} />
+        <EmptyState title="Some of these questions were deleted, so this quiz can't be saved.">
+          <Button
+            className="mt-2"
+            size="lg"
+            onClick={() => {
+              clearQuiz()
+              void navigate({ to: '/quizzes', replace: true })
+            }}
+          >
+            Discard
+          </Button>
+        </EmptyState>
+      </>
+    )
+  }
 
   return (
     <>

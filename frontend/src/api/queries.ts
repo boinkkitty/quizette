@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 
+import { clearQuizFrom } from '../lib/quizSlot'
 import { ApiError, request, requestVoid } from './client'
 import {
   type Attempt,
@@ -233,11 +234,13 @@ export function useSubmitQuiz(quiz: DrawnQuiz) {
   })
 }
 
+/** Deletes a chapter, and the tab's unfinished quiz if it drew from it. */
 export function useDeleteChapter() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => requestVoid(`/chapters/${id}`, { method: 'DELETE' }),
-    onSuccess: async () => {
+    onSuccess: async (_, id) => {
+      clearQuizFrom([id])
       await qc.invalidateQueries({ queryKey: keys.topics })
       await qc.invalidateQueries({ queryKey: keys.chapterLists })
       await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })
@@ -245,11 +248,17 @@ export function useDeleteChapter() {
   })
 }
 
+/**
+ * Deletes a topic, and the tab's unfinished quiz if it drew from one of chapterIds, the
+ * topic's chapters.
+ */
 export function useDeleteTopic() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => requestVoid(`/topics/${id}`, { method: 'DELETE' }),
-    onSuccess: async () => {
+    mutationFn: ({ id }: { id: string; chapterIds: readonly string[] }) =>
+      requestVoid(`/topics/${id}`, { method: 'DELETE' }),
+    onSuccess: async (_, { chapterIds }) => {
+      clearQuizFrom(chapterIds)
       await qc.invalidateQueries({ queryKey: keys.topics })
       await qc.invalidateQueries({ queryKey: keys.chapterLists })
       await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })

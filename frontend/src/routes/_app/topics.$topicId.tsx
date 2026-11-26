@@ -40,17 +40,20 @@ function TopicPage() {
                 </Button>
               }
               title={`Delete "${data.topic.name}"?`}
-              description="This deletes all its chapters, questions and attempt history. It can't be undone."
+              description="This deletes all its chapters and questions. Past attempts stay in History. It can't be undone."
               confirmLabel="Delete topic"
               destructive
               onConfirm={() => {
-                del.mutate(topicId, {
-                  onSuccess: () => {
-                    toast.success(`Deleted "${data.topic.name}"`)
-                    void navigate({ to: '/' })
+                del.mutate(
+                  { id: topicId, chapterIds: data.chapters.map((c) => c.id) },
+                  {
+                    onSuccess: () => {
+                      toast.success(`Deleted "${data.topic.name}"`)
+                      void navigate({ to: '/' })
+                    },
+                    onError: () => toast.error('Could not delete the topic. Please try again.'),
                   },
-                  onError: () => toast.error('Could not delete the topic. Please try again.'),
-                })
+                )
               }}
             />
             <Button size="lg" asChild>

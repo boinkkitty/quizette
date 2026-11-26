@@ -13,10 +13,13 @@ import (
 
 // ---- topics ----
 
-type topicRepo struct{ q *sqlcgen.Queries }
+type topicRepo struct {
+	q  *sqlcgen.Queries
+	db beginner
+}
 
 func toTopic(r sqlcgen.Topic) domain.Topic {
-	return domain.Topic{ID: domain.ID(r.ID), OwnerID: domain.ID(r.OwnerID), Name: r.Name, CreatedAt: r.CreatedAt}
+	return domain.Topic{ID: domain.ID(r.ID), OwnerID: domain.ID(r.OwnerID), Name: r.Name, CreatedAt: r.CreatedAt, DeletedAt: r.DeletedAt}
 }
 
 func (r topicRepo) Create(ctx context.Context, t domain.Topic) error {
@@ -25,6 +28,11 @@ func (r topicRepo) Create(ctx context.Context, t domain.Topic) error {
 
 func (r topicRepo) Get(ctx context.Context, owner, id domain.ID) (domain.Topic, error) {
 	row, err := r.q.GetTopic(ctx, sqlcgen.GetTopicParams{OwnerID: string(owner), ID: string(id)})
+	return toTopic(row), mapErr("topic", err)
+}
+
+func (r topicRepo) GetIncludingDeleted(ctx context.Context, owner, id domain.ID) (domain.Topic, error) {
+	row, err := r.q.GetTopicIncludingDeleted(ctx, sqlcgen.GetTopicIncludingDeletedParams{OwnerID: string(owner), ID: string(id)})
 	return toTopic(row), mapErr("topic", err)
 }
 
@@ -69,12 +77,26 @@ func (r topicRepo) Delete(ctx context.Context, owner, id domain.ID) error {
 	return mustAffect("topic", n, err)
 }
 
+func (r topicRepo) MarkDeleted(ctx context.Context, owner, id domain.ID, at time.Time) error {
+	return inTx(ctx, r.db, func(q *sqlcgen.Queries) error {
+		n, err := q.MarkTopicDeleted(ctx, sqlcgen.MarkTopicDeletedParams{OwnerID: string(owner), ID: string(id), DeletedAt: &at})
+		if err := mustAffect("topic", n, err); err != nil {
+			return err
+		}
+		err = q.MarkTopicChaptersDeleted(ctx, sqlcgen.MarkTopicChaptersDeletedParams{OwnerID: string(owner), TopicID: string(id), DeletedAt: &at})
+		return mapErr("chapters", err)
+	})
+}
+
 // ---- chapters ----
 
 type chapterRepo struct{ q *sqlcgen.Queries }
 
 func toChapter(r sqlcgen.Chapter) domain.Chapter {
-	return domain.Chapter{ID: domain.ID(r.ID), TopicID: domain.ID(r.TopicID), OwnerID: domain.ID(r.OwnerID), Title: r.Title, Status: domain.ChapterStatus(r.Status), CreatedAt: r.CreatedAt}
+	return domain.Chapter{
+		ID: domain.ID(r.ID), TopicID: domain.ID(r.TopicID), OwnerID: domain.ID(r.OwnerID), Title: r.Title,
+		Status: domain.ChapterStatus(r.Status), CreatedAt: r.CreatedAt, DeletedAt: r.DeletedAt,
+	}
 }
 
 func (r chapterRepo) Create(ctx context.Context, c domain.Chapter) error {
@@ -152,6 +174,23 @@ func (r chapterRepo) UpdateStatus(ctx context.Context, c domain.Chapter) error {
 func (r chapterRepo) Delete(ctx context.Context, owner, id domain.ID) error {
 	n, err := r.q.DeleteChapter(ctx, sqlcgen.DeleteChapterParams{OwnerID: string(owner), ID: string(id)})
 	return mustAffect("chapter", n, err)
+}
+
+func (r chapterRepo) MarkDeleted(ctx context.Context, owner, id domain.ID, at time.Time) error {
+	n, err := r.q.MarkChapterDeleted(ctx, sqlcgen.MarkChapterDeletedParams{OwnerID: string(owner), ID: string(id), DeletedAt: &at})
+	return mustAffect("chapter", n, err)
+}
+
+func (r chapterRepo) ListByQuestions(ctx context.Context, owner domain.ID, questionIDs []domain.ID) ([]domain.Chapter, error) {
+	rows, err := r.q.ListChaptersByQuestions(ctx, sqlcgen.ListChaptersByQuestionsParams{OwnerID: string(owner), QuestionIds: strs(questionIDs)})
+	if err != nil {
+		return nil, mapErr("chapters", err)
+	}
+	out := make([]domain.Chapter, len(rows))
+	for i, row := range rows {
+		out[i] = toChapter(row)
+	}
+	return out, nil
 }
 
 // ---- processing jobs ----
@@ -307,10 +346,7 @@ func toAttempt(r sqlcgen.Attempt) domain.Attempt {
 }
 
 func (r attemptRepo) Create(ctx context.Context, a domain.Attempt) error {
-	ids := make([]string, len(a.QuestionIDs))
-	for i, id := range a.QuestionIDs {
-		ids[i] = string(id)
-	}
+	ids := strs(a.QuestionIDs)
 	// The database checks that exactly one of topic_id and chapter_id is set.
 	scopeID := string(a.Scope.ID)
 	var topicID, chapterID *string
@@ -387,9 +423,20 @@ func (r attemptRepo) ListByOwner(ctx context.Context, owner domain.ID, limit int
 			ChapterTitle: row.ChapterTitle,
 			TopicID:      domain.ID(row.ScopeTopicID),
 			TopicName:    row.TopicName,
+			ScopeDeleted: row.ScopeDeleted,
 		}
 	}
 	return out, nil
+}
+
+func (r attemptRepo) ReferencesChapter(ctx context.Context, owner, chapterID domain.ID) (bool, error) {
+	ok, err := r.q.ChapterReferenced(ctx, sqlcgen.ChapterReferencedParams{OwnerID: string(owner), ChapterID: string(chapterID)})
+	return ok, mapErr("attempts", err)
+}
+
+func (r attemptRepo) ReferencesTopic(ctx context.Context, owner, topicID domain.ID) (bool, error) {
+	ok, err := r.q.TopicReferenced(ctx, sqlcgen.TopicReferencedParams{OwnerID: string(owner), TopicID: string(topicID)})
+	return ok, mapErr("attempts", err)
 }
 
 // ---- users & sessions ----
@@ -454,6 +501,14 @@ func (r sessionRepo) DeleteExpired(ctx context.Context, now time.Time) (int64, e
 // ---- helpers ----
 
 func i32(n int) int32 { return int32(n) } //nolint:gosec // all callers pass small, domain-bounded values
+
+func strs(ids []domain.ID) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = string(id)
+	}
+	return out
+}
 
 func ints32(in []int) []int32 {
 	out := make([]int32, len(in))

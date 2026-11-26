@@ -111,8 +111,10 @@ type questionDTO struct {
 	Explanation string   `json:"explanation,omitempty"`
 	SourceHint  string   `json:"sourceHint,omitempty"`
 	// ChapterID and ChapterTitle name the question's chapter in a quiz or attempt.
-	ChapterID    string `json:"chapterId,omitempty"`
-	ChapterTitle string `json:"chapterTitle,omitempty"`
+	// ChapterDeleted is set on a past attempt's question whose chapter is deleted.
+	ChapterID      string `json:"chapterId,omitempty"`
+	ChapterTitle   string `json:"chapterTitle,omitempty"`
+	ChapterDeleted bool   `json:"chapterDeleted,omitempty"`
 }
 
 func toQuestionDTO(q domain.Question, reveal bool) questionDTO {
@@ -125,7 +127,7 @@ func toQuestionDTO(q domain.Question, reveal bool) questionDTO {
 
 func toScopedQuestionDTO(q app.ScopedQuestion, reveal bool) questionDTO {
 	d := toQuestionDTO(q.Question, reveal)
-	d.ChapterID, d.ChapterTitle = q.ChapterID.String(), q.ChapterTitle
+	d.ChapterID, d.ChapterTitle, d.ChapterDeleted = q.ChapterID.String(), q.ChapterTitle, q.ChapterDeleted
 	return d
 }
 
@@ -185,18 +187,22 @@ func toAttemptSummary(a domain.Attempt) attemptSummaryDTO {
 
 // attemptHistoryItemDTO is one row of the owner-wide attempt history. topicId is
 // set for both scopes: a chapter-scoped attempt's is its chapter's topic. Its
-// chapterTitle is empty for a topic-scoped attempt.
+// chapterTitle is empty for a topic-scoped attempt. scopeDeleted reports whether the
+// attempt's chapter or topic is deleted.
 type attemptHistoryItemDTO struct {
 	attemptSummaryDTO
 	ChapterTitle string `json:"chapterTitle,omitempty"`
 	TopicID      string `json:"topicId"`
 	TopicName    string `json:"topicName"`
+	ScopeDeleted bool   `json:"scopeDeleted"`
 }
 
+// attemptDTO's scopeDeleted reports whether the attempt's chapter or topic is deleted.
 type attemptDTO struct {
 	attemptSummaryDTO
 	ChapterTitle string        `json:"chapterTitle,omitempty"`
 	TopicName    string        `json:"topicName,omitempty"`
+	ScopeDeleted bool          `json:"scopeDeleted"`
 	Questions    []questionDTO `json:"questions"`
 	Answers      []answerDTO   `json:"answers"`
 }
@@ -204,7 +210,7 @@ type attemptDTO struct {
 // toAttemptDTO reveals correct answers: an attempt only exists once submitted.
 func toAttemptDTO(v app.AttemptView) attemptDTO {
 	sc := toScopeDTO(v.Attempt.Scope, v.ScopeName)
-	out := attemptDTO{attemptSummaryDTO: toAttemptSummary(v.Attempt), ChapterTitle: sc.ChapterTitle, TopicName: sc.TopicName, Questions: make([]questionDTO, len(v.Questions)), Answers: []answerDTO{}}
+	out := attemptDTO{attemptSummaryDTO: toAttemptSummary(v.Attempt), ChapterTitle: sc.ChapterTitle, TopicName: sc.TopicName, ScopeDeleted: v.ScopeDeleted, Questions: make([]questionDTO, len(v.Questions)), Answers: []answerDTO{}}
 	for i, q := range v.Questions {
 		out.Questions[i] = toScopedQuestionDTO(q, true)
 	}

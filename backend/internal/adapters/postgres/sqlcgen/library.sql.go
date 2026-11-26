@@ -48,6 +48,8 @@ type CreateTopicParams struct {
 }
 
 // Topics and chapters. Every query filters by owner_id, which is how ownership is enforced.
+// Deleted topics and chapters (deleted_at set, ADR 0010) are hidden: every query skips
+// them unless its comment says otherwise.
 func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) error {
 	_, err := q.db.Exec(ctx, createTopic,
 		arg.ID,
@@ -59,7 +61,7 @@ func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) error 
 }
 
 const deleteChapter = `-- name: DeleteChapter :execrows
-DELETE FROM chapters WHERE owner_id = $1 AND id = $2
+DELETE FROM chapters WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type DeleteChapterParams struct {
@@ -76,7 +78,7 @@ func (q *Queries) DeleteChapter(ctx context.Context, arg DeleteChapterParams) (i
 }
 
 const deleteTopic = `-- name: DeleteTopic :execrows
-DELETE FROM topics WHERE owner_id = $1 AND id = $2
+DELETE FROM topics WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type DeleteTopicParams struct {
@@ -93,7 +95,7 @@ func (q *Queries) DeleteTopic(ctx context.Context, arg DeleteTopicParams) (int64
 }
 
 const getChapter = `-- name: GetChapter :one
-SELECT id, topic_id, owner_id, title, status, created_at FROM chapters WHERE owner_id = $1 AND id = $2
+SELECT id, topic_id, owner_id, title, status, created_at, deleted_at FROM chapters WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type GetChapterParams struct {
@@ -111,14 +113,16 @@ func (q *Queries) GetChapter(ctx context.Context, arg GetChapterParams) (Chapter
 		&i.Title,
 		&i.Status,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getChapterByID = `-- name: GetChapterByID :one
-SELECT id, topic_id, owner_id, title, status, created_at FROM chapters WHERE id = $1
+SELECT id, topic_id, owner_id, title, status, created_at, deleted_at FROM chapters WHERE id = $1
 `
 
+// Includes deleted chapters: generation jobs look their chapter up by ID alone.
 func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error) {
 	row := q.db.QueryRow(ctx, getChapterByID, id)
 	var i Chapter
@@ -129,12 +133,13 @@ func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error
 		&i.Title,
 		&i.Status,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getTopic = `-- name: GetTopic :one
-SELECT id, owner_id, name, created_at FROM topics WHERE owner_id = $1 AND id = $2
+SELECT id, owner_id, name, created_at, deleted_at FROM topics WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type GetTopicParams struct {
@@ -150,12 +155,13 @@ func (q *Queries) GetTopic(ctx context.Context, arg GetTopicParams) (Topic, erro
 		&i.OwnerID,
 		&i.Name,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getTopicByName = `-- name: GetTopicByName :one
-SELECT id, owner_id, name, created_at FROM topics WHERE owner_id = $1 AND name = $2
+SELECT id, owner_id, name, created_at, deleted_at FROM topics WHERE owner_id = $1 AND name = $2 AND deleted_at IS NULL
 `
 
 type GetTopicByNameParams struct {
@@ -171,18 +177,42 @@ func (q *Queries) GetTopicByName(ctx context.Context, arg GetTopicByNameParams) 
 		&i.OwnerID,
 		&i.Name,
 		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getTopicIncludingDeleted = `-- name: GetTopicIncludingDeleted :one
+SELECT id, owner_id, name, created_at, deleted_at FROM topics WHERE owner_id = $1 AND id = $2
+`
+
+type GetTopicIncludingDeletedParams struct {
+	OwnerID string
+	ID      string
+}
+
+// Includes deleted topics: a past attempt shows its topic's name.
+func (q *Queries) GetTopicIncludingDeleted(ctx context.Context, arg GetTopicIncludingDeletedParams) (Topic, error) {
+	row := q.db.QueryRow(ctx, getTopicIncludingDeleted, arg.OwnerID, arg.ID)
+	var i Topic
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const listChaptersByOwner = `-- name: ListChaptersByOwner :many
-SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, t.name AS topic_name,
+SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, c.deleted_at, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
     coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
     coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
-WHERE c.owner_id = $1
+WHERE c.owner_id = $1 AND c.deleted_at IS NULL
     AND ($2::uuid IS NULL OR c.topic_id = $2::uuid)
     AND ($3::text IS NULL OR c.status = $3::text)
 ORDER BY t.name, c.created_at
@@ -201,6 +231,7 @@ type ListChaptersByOwnerRow struct {
 	Title         string
 	Status        string
 	CreatedAt     time.Time
+	DeletedAt     *time.Time
 	TopicName     string
 	QuestionCount int32
 	AttemptCount  int32
@@ -226,6 +257,7 @@ func (q *Queries) ListChaptersByOwner(ctx context.Context, arg ListChaptersByOwn
 			&i.Title,
 			&i.Status,
 			&i.CreatedAt,
+			&i.DeletedAt,
 			&i.TopicName,
 			&i.QuestionCount,
 			&i.AttemptCount,
@@ -241,14 +273,56 @@ func (q *Queries) ListChaptersByOwner(ctx context.Context, arg ListChaptersByOwn
 	return items, nil
 }
 
+const listChaptersByQuestions = `-- name: ListChaptersByQuestions :many
+SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, c.deleted_at FROM chapters c
+WHERE c.owner_id = $1 AND EXISTS (
+    SELECT 1 FROM questions q JOIN question_sets s ON s.id = q.question_set_id
+    WHERE s.chapter_id = c.id AND q.id = ANY($2::uuid[])
+)
+`
+
+type ListChaptersByQuestionsParams struct {
+	OwnerID     string
+	QuestionIds []string
+}
+
+// Includes deleted chapters: a past attempt shows questions from them.
+func (q *Queries) ListChaptersByQuestions(ctx context.Context, arg ListChaptersByQuestionsParams) ([]Chapter, error) {
+	rows, err := q.db.Query(ctx, listChaptersByQuestions, arg.OwnerID, arg.QuestionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Chapter{}
+	for rows.Next() {
+		var i Chapter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TopicID,
+			&i.OwnerID,
+			&i.Title,
+			&i.Status,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChaptersByTopic = `-- name: ListChaptersByTopic :many
-SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, t.name AS topic_name,
+SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, c.deleted_at, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
     coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
     coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
-WHERE c.owner_id = $1 AND c.topic_id = $2
+WHERE c.owner_id = $1 AND c.topic_id = $2 AND c.deleted_at IS NULL
 ORDER BY c.created_at, c.id
 `
 
@@ -264,6 +338,7 @@ type ListChaptersByTopicRow struct {
 	Title         string
 	Status        string
 	CreatedAt     time.Time
+	DeletedAt     *time.Time
 	TopicName     string
 	QuestionCount int32
 	AttemptCount  int32
@@ -290,6 +365,7 @@ func (q *Queries) ListChaptersByTopic(ctx context.Context, arg ListChaptersByTop
 			&i.Title,
 			&i.Status,
 			&i.CreatedAt,
+			&i.DeletedAt,
 			&i.TopicName,
 			&i.QuestionCount,
 			&i.AttemptCount,
@@ -306,12 +382,12 @@ func (q *Queries) ListChaptersByTopic(ctx context.Context, arg ListChaptersByTop
 }
 
 const listTopics = `-- name: ListTopics :many
-SELECT t.id, t.owner_id, t.name, t.created_at, (SELECT count(*) FROM chapters c WHERE c.topic_id = t.id)::int AS chapter_count,
+SELECT t.id, t.owner_id, t.name, t.created_at, t.deleted_at, (SELECT count(*) FROM chapters c WHERE c.topic_id = t.id AND c.deleted_at IS NULL)::int AS chapter_count,
     coalesce((SELECT count(*) FROM attempts a WHERE a.topic_id = t.id), 0)::int AS attempt_count,
     coalesce((SELECT a.total_score / a.max_score * 100 FROM attempts a WHERE a.topic_id = t.id ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1), -1)::float8 AS last_score_pct,
     coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.topic_id = t.id), -1)::float8 AS best_score_pct
 FROM topics t
-WHERE t.owner_id = $1
+WHERE t.owner_id = $1 AND t.deleted_at IS NULL
 ORDER BY t.name
 `
 
@@ -320,6 +396,7 @@ type ListTopicsRow struct {
 	OwnerID      string
 	Name         string
 	CreatedAt    time.Time
+	DeletedAt    *time.Time
 	ChapterCount int32
 	AttemptCount int32
 	LastScorePct float64
@@ -342,6 +419,7 @@ func (q *Queries) ListTopics(ctx context.Context, ownerID string) ([]ListTopicsR
 			&i.OwnerID,
 			&i.Name,
 			&i.CreatedAt,
+			&i.DeletedAt,
 			&i.ChapterCount,
 			&i.AttemptCount,
 			&i.LastScorePct,
@@ -355,6 +433,57 @@ func (q *Queries) ListTopics(ctx context.Context, ownerID string) ([]ListTopicsR
 		return nil, err
 	}
 	return items, nil
+}
+
+const markChapterDeleted = `-- name: MarkChapterDeleted :execrows
+UPDATE chapters SET deleted_at = $3 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
+`
+
+type MarkChapterDeletedParams struct {
+	OwnerID   string
+	ID        string
+	DeletedAt *time.Time
+}
+
+func (q *Queries) MarkChapterDeleted(ctx context.Context, arg MarkChapterDeletedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markChapterDeleted, arg.OwnerID, arg.ID, arg.DeletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markTopicChaptersDeleted = `-- name: MarkTopicChaptersDeleted :exec
+UPDATE chapters SET deleted_at = $3 WHERE owner_id = $1 AND topic_id = $2 AND deleted_at IS NULL
+`
+
+type MarkTopicChaptersDeletedParams struct {
+	OwnerID   string
+	TopicID   string
+	DeletedAt *time.Time
+}
+
+func (q *Queries) MarkTopicChaptersDeleted(ctx context.Context, arg MarkTopicChaptersDeletedParams) error {
+	_, err := q.db.Exec(ctx, markTopicChaptersDeleted, arg.OwnerID, arg.TopicID, arg.DeletedAt)
+	return err
+}
+
+const markTopicDeleted = `-- name: MarkTopicDeleted :execrows
+UPDATE topics SET deleted_at = $3 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
+`
+
+type MarkTopicDeletedParams struct {
+	OwnerID   string
+	ID        string
+	DeletedAt *time.Time
+}
+
+func (q *Queries) MarkTopicDeleted(ctx context.Context, arg MarkTopicDeletedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markTopicDeleted, arg.OwnerID, arg.ID, arg.DeletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateChapterStatus = `-- name: UpdateChapterStatus :execrows
@@ -375,7 +504,7 @@ func (q *Queries) UpdateChapterStatus(ctx context.Context, arg UpdateChapterStat
 }
 
 const updateChapterTitle = `-- name: UpdateChapterTitle :execrows
-UPDATE chapters SET title = $3 WHERE owner_id = $1 AND id = $2
+UPDATE chapters SET title = $3 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type UpdateChapterTitleParams struct {
@@ -395,7 +524,7 @@ func (q *Queries) UpdateChapterTitle(ctx context.Context, arg UpdateChapterTitle
 }
 
 const updateTopic = `-- name: UpdateTopic :execrows
-UPDATE topics SET name = $3 WHERE owner_id = $1 AND id = $2
+UPDATE topics SET name = $3 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type UpdateTopicParams struct {

@@ -16,6 +16,8 @@ const (
 )
 
 // Chapter is created by one document upload and owns (by ID) one QuestionSet.
+// DeletedAt is set on a deleted chapter: one kept, hidden, because an attempt refers
+// to it (ADR 0010).
 type Chapter struct {
 	ID        ID
 	TopicID   ID
@@ -23,6 +25,7 @@ type Chapter struct {
 	Title     string
 	Status    ChapterStatus
 	CreatedAt time.Time
+	DeletedAt *time.Time
 }
 
 // NewChapter creates a pending chapter.
