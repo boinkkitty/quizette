@@ -10,6 +10,42 @@ import (
 	"time"
 )
 
+const attemptStats = `-- name: AttemptStats :one
+SELECT count(*)::int AS attempt_count,
+    coalesce(avg(total_score / max_score * 100), -1)::float8 AS average_score_pct,
+    coalesce(sum(cardinality(question_ids)), 0)::int AS question_count,
+    (count(*) FILTER (WHERE submitted_at >= $1::timestamptz))::int AS recent_count
+FROM attempts
+WHERE owner_id = $2
+`
+
+type AttemptStatsParams struct {
+	Since   time.Time
+	OwnerID string
+}
+
+type AttemptStatsRow struct {
+	AttemptCount    int32
+	AverageScorePct float64
+	QuestionCount   int32
+	RecentCount     int32
+}
+
+// The Dashboard's figures over all of the user's attempts, whatever their scope.
+// average_score_pct is -1 without attempts (mapped to nil). recent_count counts the
+// attempts submitted at or after since.
+func (q *Queries) AttemptStats(ctx context.Context, arg AttemptStatsParams) (AttemptStatsRow, error) {
+	row := q.db.QueryRow(ctx, attemptStats, arg.Since, arg.OwnerID)
+	var i AttemptStatsRow
+	err := row.Scan(
+		&i.AttemptCount,
+		&i.AverageScorePct,
+		&i.QuestionCount,
+		&i.RecentCount,
+	)
+	return i, err
+}
+
 const chapterReferenced = `-- name: ChapterReferenced :one
 SELECT EXISTS (
     SELECT 1 FROM attempt_answers aa

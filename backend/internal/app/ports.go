@@ -64,13 +64,15 @@ type TopicSummary struct {
 	BestScorePct *float64
 }
 
-// ChapterSummary is a chapter with list-view aggregates. AttemptCount and
-// BestScorePct count chapter-scoped attempts only (ADR 0010).
+// ChapterSummary is a chapter with list-view aggregates. AttemptCount,
+// LastScorePct and BestScorePct count chapter-scoped attempts only (ADR 0010);
+// the scores are nil without attempts.
 type ChapterSummary struct {
 	domain.Chapter
 	TopicName     string
 	QuestionCount int
 	AttemptCount  int
+	LastScorePct  *float64
 	BestScorePct  *float64
 }
 
@@ -150,6 +152,17 @@ type AttemptSummary struct {
 	ChapterCount int
 }
 
+// AttemptStats sums up a user's attempts across all scopes. AverageScorePct is the
+// mean of the attempts' percentages, nil without attempts. Questions counts the
+// questions drawn, answered or not. RecentCount counts attempts submitted since
+// the time Stats was given.
+type AttemptStats struct {
+	Count           int
+	AverageScorePct *float64
+	Questions       int
+	RecentCount     int
+}
+
 // AttemptRepository persists Attempts.
 type AttemptRepository interface {
 	// Create saves a submitted attempt and its answers together.
@@ -159,6 +172,9 @@ type AttemptRepository interface {
 	ListByChapter(ctx context.Context, ownerID, chapterID domain.ID) ([]domain.Attempt, error)
 	// ListByOwner returns at most limit of the user's attempts across all scopes, newest first.
 	ListByOwner(ctx context.Context, ownerID domain.ID, limit int) ([]AttemptSummary, error)
+	// Stats sums up all of the user's attempts, counting those submitted at or after
+	// since as recent.
+	Stats(ctx context.Context, ownerID domain.ID, since time.Time) (AttemptStats, error)
 	// ReferencesChapter reports whether any of the user's attempts drew a question from
 	// the chapter.
 	ReferencesChapter(ctx context.Context, ownerID, chapterID domain.ID) (bool, error)

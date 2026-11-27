@@ -209,6 +209,7 @@ const listChaptersByOwner = `-- name: ListChaptersByOwner :many
 SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, c.deleted_at, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
     coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT a.total_score / a.max_score * 100 FROM attempts a WHERE a.chapter_id = c.id ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1), -1)::float8 AS last_score_pct,
     coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
@@ -235,6 +236,7 @@ type ListChaptersByOwnerRow struct {
 	TopicName     string
 	QuestionCount int32
 	AttemptCount  int32
+	LastScorePct  float64
 	BestScorePct  float64
 }
 
@@ -261,6 +263,7 @@ func (q *Queries) ListChaptersByOwner(ctx context.Context, arg ListChaptersByOwn
 			&i.TopicName,
 			&i.QuestionCount,
 			&i.AttemptCount,
+			&i.LastScorePct,
 			&i.BestScorePct,
 		); err != nil {
 			return nil, err
@@ -319,6 +322,7 @@ const listChaptersByTopic = `-- name: ListChaptersByTopic :many
 SELECT c.id, c.topic_id, c.owner_id, c.title, c.status, c.created_at, c.deleted_at, t.name AS topic_name,
     coalesce((SELECT count(*) FROM questions q JOIN question_sets s ON s.id = q.question_set_id WHERE s.chapter_id = c.id), 0)::int AS question_count,
     coalesce((SELECT count(*) FROM attempts a WHERE a.chapter_id = c.id), 0)::int AS attempt_count,
+    coalesce((SELECT a.total_score / a.max_score * 100 FROM attempts a WHERE a.chapter_id = c.id ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1), -1)::float8 AS last_score_pct,
     coalesce((SELECT max(a.total_score / a.max_score * 100) FROM attempts a WHERE a.chapter_id = c.id), -1)::float8 AS best_score_pct
 FROM chapters c
 JOIN topics t ON t.id = c.topic_id
@@ -342,13 +346,15 @@ type ListChaptersByTopicRow struct {
 	TopicName     string
 	QuestionCount int32
 	AttemptCount  int32
+	LastScorePct  float64
 	BestScorePct  float64
 }
 
 // Chapters of one topic with list-view aggregates. The aggregates are correlated
 // subqueries rather than joins so one chapter row can't be multiplied by its questions
 // and attempts. Attempt figures count chapter-scoped attempts only (a topic attempt has
-// no chapter_id). best_score_pct is -1 when there are none (mapped to nil).
+// no chapter_id). last_score_pct and best_score_pct are -1 when there are none (mapped
+// to nil).
 func (q *Queries) ListChaptersByTopic(ctx context.Context, arg ListChaptersByTopicParams) ([]ListChaptersByTopicRow, error) {
 	rows, err := q.db.Query(ctx, listChaptersByTopic, arg.OwnerID, arg.TopicID)
 	if err != nil {
@@ -369,6 +375,7 @@ func (q *Queries) ListChaptersByTopic(ctx context.Context, arg ListChaptersByTop
 			&i.TopicName,
 			&i.QuestionCount,
 			&i.AttemptCount,
+			&i.LastScorePct,
 			&i.BestScorePct,
 		); err != nil {
 			return nil, err

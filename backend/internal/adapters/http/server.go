@@ -20,6 +20,7 @@ type Config struct {
 	Library    *app.LibraryService
 	Generation *app.GenerationService
 	Practice   *app.PracticeService
+	Dashboard  *app.DashboardService
 	Logger     *slog.Logger
 	// PublicURL is the browser-facing origin (this server in production, the
 	// Vite dev server locally), used for OAuth redirects back into the SPA.
@@ -65,6 +66,8 @@ func NewRouter(cfg Config) (http.Handler, error) {
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(requireUser)
+			r.Get("/dashboard", s.getDashboard)
+
 			r.Get("/topics", s.listTopics)
 			r.Post("/topics", s.createTopic)
 			r.Get("/topics/{id}", s.getTopic)

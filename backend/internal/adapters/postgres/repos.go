@@ -153,10 +153,8 @@ func toChapterSummary(row sqlcgen.ListChaptersByTopicRow) app.ChapterSummary {
 		TopicName:     row.TopicName,
 		QuestionCount: int(row.QuestionCount),
 		AttemptCount:  int(row.AttemptCount),
-	}
-	if row.BestScorePct >= 0 {
-		v := row.BestScorePct
-		cs.BestScorePct = &v
+		LastScorePct:  pct(row.LastScorePct),
+		BestScorePct:  pct(row.BestScorePct),
 	}
 	return cs
 }
@@ -428,6 +426,17 @@ func (r attemptRepo) ListByOwner(ctx context.Context, owner domain.ID, limit int
 		}
 	}
 	return out, nil
+}
+
+func (r attemptRepo) Stats(ctx context.Context, owner domain.ID, since time.Time) (app.AttemptStats, error) {
+	row, err := r.q.AttemptStats(ctx, sqlcgen.AttemptStatsParams{OwnerID: string(owner), Since: since})
+	if err != nil {
+		return app.AttemptStats{}, mapErr("attempt stats", err)
+	}
+	return app.AttemptStats{
+		Count: int(row.AttemptCount), AverageScorePct: pct(row.AverageScorePct),
+		Questions: int(row.QuestionCount), RecentCount: int(row.RecentCount),
+	}, nil
 }
 
 func (r attemptRepo) ReferencesChapter(ctx context.Context, owner, chapterID domain.ID) (bool, error) {

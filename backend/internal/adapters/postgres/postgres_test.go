@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"slices"
 	"testing"
@@ -572,5 +573,62 @@ func TestHistoryCountsTheChaptersAQuizDrewFrom(t *testing.T) {
 	}
 	if hist[1].Scope.Type != domain.ScopeTopic || hist[1].ChapterCount != 2 {
 		t.Errorf("topic quiz: %+v, want ChapterCount 2", hist[1])
+	}
+}
+
+func TestDashboardFigures(t *testing.T) {
+	pool := openDB(t)
+	ctx := context.Background()
+	store, gen, _, prac, u := newServices(t, pool, true)
+	dash := &app.DashboardService{Deps: app.Deps{Repos: store.Repos(), UoW: store, Clock: system.Clock{}, IDs: system.UUIDv7{}, Logger: slog.New(slog.DiscardHandler)}}
+
+	cells, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, NewTopicName: "Biology", Count: 10, Filename: "cells.pdf", Data: []byte("%PDF-1.4 cells")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, TopicID: cells.TopicID, Count: 10, Filename: "genes.pdf", Data: []byte("%PDF-1.4 genes")}); err != nil {
+		t.Fatal(err)
+	}
+	// submit takes a quiz of count questions, answered as the stub grades correct if
+	// correct is set and left unanswered otherwise.
+	submit := func(scope domain.AttemptScope, count int, correct bool) {
+		t.Helper()
+		q, err := prac.DrawQuiz(ctx, u.ID, scope, count)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make([]domain.ID, len(q.Questions))
+		answers := map[domain.ID][]int{}
+		for i, dq := range q.Questions {
+			ids[i] = dq.ID
+			if correct {
+				answers[dq.ID] = map[domain.QuestionType][]int{domain.MCQ: {1}, domain.TrueFalse: {0}, domain.MRQ: {0, 2}}[dq.Type]
+			}
+		}
+		if _, err := prac.SubmitQuiz(ctx, u.ID, scope, ids, answers); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond) // Space the attempts apart so "last" is well defined.
+	}
+	submit(domain.ChapterScope(cells.ChapterID), 5, true)  // 100%
+	submit(domain.ChapterScope(cells.ChapterID), 5, false) // 0%: Cells' last score, though not its best
+	submit(domain.TopicScope(cells.TopicID), 10, true)     // 100%, sets no chapter's last score
+
+	d, err := dash.Get(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := d.Stats
+	if s.Count != 3 || s.AverageScorePct == nil || math.Abs(*s.AverageScorePct-200.0/3) > 1e-9 || s.Questions != 20 || s.RecentCount != 3 {
+		t.Errorf("stats = %+v (average %v), want 3 attempts averaging 66.67 over 20 questions, all recent", s, s.AverageScorePct)
+	}
+	if s.ChaptersQuizzed != 1 || s.ReadyChapters != 2 {
+		t.Errorf("chapters quizzed = %d of %d, want 1 of 2", s.ChaptersQuizzed, s.ReadyChapters)
+	}
+	if len(d.Topics) != 1 || d.Topics[0].AverageLastScorePct == nil || *d.Topics[0].AverageLastScorePct != 0 {
+		t.Errorf("topics = %+v, want Biology averaging Cells' last score, 0", d.Topics)
+	}
+	if len(d.Activity) != 5 || d.Activity[0].Attempt == nil || d.Activity[0].Attempt.Scope.Type != domain.ScopeTopic {
+		t.Errorf("activity = %+v, want 3 attempts and 2 uploads, the topic quiz first", d.Activity)
 	}
 }

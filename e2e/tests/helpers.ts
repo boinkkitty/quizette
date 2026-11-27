@@ -15,7 +15,7 @@ export async function signUp(page: Page, email = uniqueEmail(), password = 'corr
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill(password)
   await page.getByRole('button', { name: 'Sign up' }).click()
-  await expect(page.getByRole('heading', { name: 'Your topics' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
   return email
 }
 

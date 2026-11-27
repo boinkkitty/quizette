@@ -36,6 +36,17 @@ WHERE a.owner_id = $1
 ORDER BY a.started_at DESC
 LIMIT $2;
 
+-- The Dashboard's figures over all of the user's attempts, whatever their scope.
+-- average_score_pct is -1 without attempts (mapped to nil). recent_count counts the
+-- attempts submitted at or after since.
+-- name: AttemptStats :one
+SELECT count(*)::int AS attempt_count,
+    coalesce(avg(total_score / max_score * 100), -1)::float8 AS average_score_pct,
+    coalesce(sum(cardinality(question_ids)), 0)::int AS question_count,
+    (count(*) FILTER (WHERE submitted_at >= sqlc.arg('since')::timestamptz))::int AS recent_count
+FROM attempts
+WHERE owner_id = sqlc.arg('owner_id');
+
 -- Whether any of the user's attempts drew a question from the chapter. Every drawn
 -- question has an answer row, answered or not, so the answers index finds it.
 -- name: ChapterReferenced :one
