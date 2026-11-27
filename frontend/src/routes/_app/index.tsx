@@ -9,7 +9,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { ScorePill } from '../../components/ScorePill'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
-import { formatPct } from '../../lib/format'
+import { formatPct, plural } from '../../lib/format'
 
 export const Route = createFileRoute('/_app/')({
   loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQuery),
@@ -226,7 +226,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
           )}
           <span className="block truncate text-xs text-muted-foreground">
             {item.scope === 'chapter' && `${item.topicName} · `}
-            {item.count} questions
+            {plural(item.count, 'question')}
           </span>
         </span>
         <ScorePill pct={item.scorePct} className="px-2 py-0.5 text-xs" />
@@ -249,7 +249,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
             ? 'generating questions…'
             : item.status === 'failed'
               ? 'generation failed'
-              : `${String(item.questionCount)} questions`}
+              : plural(item.questionCount, 'question')}
         </span>
       </span>
     </Link>

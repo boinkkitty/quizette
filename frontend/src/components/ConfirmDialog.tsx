@@ -13,8 +13,11 @@ import {
 } from '@/components/ui/alert-dialog'
 
 interface Props {
-  /** The element that opens the dialog; it must accept a ref (e.g. a Button). */
-  trigger: ReactNode
+  /** The element that opens the dialog; it must accept a ref (e.g. a Button). Omit it to control open. */
+  trigger?: ReactNode
+  /** With onOpenChange, controls the dialog, e.g. to open it from a menu item. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   title: string
   description: ReactNode
   confirmLabel: string
@@ -32,10 +35,15 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   destructive = false,
   onConfirm,
+  open,
+  onOpenChange,
 }: Props) {
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+    <AlertDialog
+      {...(open !== undefined ? { open } : {})}
+      {...(onOpenChange ? { onOpenChange } : {})}
+    >
+      {trigger !== undefined && <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

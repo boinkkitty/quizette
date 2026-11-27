@@ -105,7 +105,7 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
               </div>
             )}
 
-          <Button variant={shown ? 'outline' : 'secondary'} onClick={toggle}>
+          <Button variant={shown ? 'outline' : 'secondary'} size="lg" onClick={toggle}>
             {shown ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />}
             {shown ? 'Hide answer' : 'Show answer'}
           </Button>

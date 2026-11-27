@@ -1,4 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { z } from 'zod'
 
 import { clearQuizFrom } from '../lib/quizSlot'
@@ -155,6 +156,22 @@ export const jobQuery = (id: string) =>
 
 export const isJobDone = (job: Job): boolean =>
   job.status === 'succeeded' || job.status === 'failed'
+
+/**
+ * useRefreshWhenJobDone refetches what a finished job changes (the chapter's status and question
+ * count), so pages loaded while it ran, such as the Quizzes picker, don't keep it as pending.
+ */
+export function useRefreshWhenJobDone(job: Job | undefined, chapterId: string): void {
+  const qc = useQueryClient()
+  const done = job !== undefined && isJobDone(job)
+  useEffect(() => {
+    if (!done) return
+    void qc.invalidateQueries({ queryKey: keys.topics })
+    void qc.invalidateQueries({ queryKey: keys.dashboard })
+    void qc.invalidateQueries({ queryKey: keys.chapterLists })
+    void qc.invalidateQueries({ queryKey: keys.chapter(chapterId), exact: true })
+  }, [done, chapterId, qc])
+}
 
 // ---- mutations ----
 

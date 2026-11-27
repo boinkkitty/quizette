@@ -25,6 +25,38 @@ describe('topics browser', () => {
   })
 })
 
+describe('chapter counts', () => {
+  /** Topic t1 (Biology) with two ready chapters and a failed one. */
+  function serveChapters() {
+    server.use(
+      http.get('/api/topics', () => HttpResponse.json([topic({ chapterCount: 3 })])),
+      http.get('/api/chapters', () =>
+        HttpResponse.json([
+          chapterSummary(),
+          chapterSummary({ id: 'c2', title: 'Genetics' }),
+          chapterSummary({ id: 'c3', title: 'Ecology', status: 'failed', questionCount: 0 }),
+        ]),
+      ),
+    )
+  }
+
+  it('reads the same on Topics as on Quizzes', async () => {
+    serveChapters()
+    renderApp('/topics')
+    expect(await screen.findByRole('link', { name: /Biology/ })).toHaveTextContent(
+      '3 chapters · 1 failed',
+    )
+  })
+
+  it('reads the same on Quizzes as on Topics', async () => {
+    serveChapters()
+    renderApp('/quizzes')
+    expect(await screen.findByRole('button', { name: /Biology/ })).toHaveTextContent(
+      '3 chapters · 1 failed',
+    )
+  })
+})
+
 describe('topic page', () => {
   /** Serves topic t1 (Biology) with a chapter in each status. */
   function serveTopic() {
@@ -79,6 +111,15 @@ describe('topic page', () => {
       'href',
       '/quizzes?topicId=t1',
     )
+  })
+
+  it('offers to re-upload a chapter whose generation failed', async () => {
+    serveTopic()
+    renderApp('/topics/t1')
+    expect(
+      await screen.findByRole('link', { name: 'Generation failed: re-upload' }),
+    ).toHaveAttribute('href', '/upload?topicId=t1')
+    expect(screen.getAllByRole('link', { name: /re-upload/ })).toHaveLength(1)
   })
 
   it('goes to Topics after deleting the topic', async () => {

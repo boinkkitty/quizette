@@ -159,7 +159,7 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
             />
           )}
         </Field>
-        <Field label="Questions to generate" hint="The bank you'll practise from">
+        <Field label="Questions to generate" hint="The bank you'll practice from">
           {(c) => (
             <NativeSelect
               className="w-full"

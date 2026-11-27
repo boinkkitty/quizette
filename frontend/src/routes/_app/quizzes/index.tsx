@@ -18,10 +18,12 @@ const searchSchema = z.object({
 /** The only place a quiz is set up: topic, then what to quiz, then how many. */
 export const Route = createFileRoute('/_app/quizzes/')({
   validateSearch: searchSchema,
+  // fetchQuery, not ensureQueryData: the picker resolves the preselection once, when it mounts, so
+  // it must not start from a stale list that still has the chapter as pending.
   loader: ({ context }) =>
     Promise.all([
-      context.queryClient.ensureQueryData(topicsQuery),
-      context.queryClient.ensureQueryData(allChapters),
+      context.queryClient.fetchQuery(topicsQuery),
+      context.queryClient.fetchQuery(allChapters),
     ]),
   component: QuizzesPage,
 })

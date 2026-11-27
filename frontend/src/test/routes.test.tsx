@@ -73,6 +73,33 @@ describe('routing', () => {
   })
 })
 
+describe('pending indicator', () => {
+  it('shows while the next page loads, so a slow API still answers the click', async () => {
+    let release = () => {}
+    const slow = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.get('/api/topics', async () => {
+        await slow
+        return HttpResponse.json([])
+      }),
+    )
+    const u = userEvent.setup()
+    renderApp('/history')
+    server.use(http.get('/api/attempts', () => HttpResponse.json([])))
+    const nav = await screen.findByRole('navigation', { name: 'Main' })
+    expect(screen.queryByRole('progressbar', { name: 'Loading page' })).not.toBeInTheDocument()
+    await u.click(within(nav).getByRole('link', { name: 'Topics' }))
+    expect(await screen.findByRole('progressbar', { name: 'Loading page' })).toBeInTheDocument()
+    release()
+    expect(await screen.findByRole('heading', { name: 'Topics' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.queryByRole('progressbar', { name: 'Loading page' })).not.toBeInTheDocument(),
+    )
+  })
+})
+
 describe('quiz runner', () => {
   const submitted: Attempt = attempt({
     totalScore: 2.5,

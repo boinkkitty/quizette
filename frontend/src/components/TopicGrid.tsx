@@ -1,11 +1,19 @@
 import { Link } from '@tanstack/react-router'
 import { FolderIcon } from 'lucide-react'
 
-import type { Topic } from '../api/schemas'
+import type { ChapterSummary, Topic } from '../api/schemas'
+import { chapterCountLabel } from '../lib/format'
 import { EmptyState } from './EmptyState'
 
 /** The user's topics as cards linking to each topic page; empty, it points to Upload. */
-export function TopicGrid({ topics }: { topics: readonly Topic[] }) {
+export function TopicGrid({
+  topics,
+  chapters,
+}: {
+  topics: readonly Topic[]
+  /** Every chapter of every topic, to count each topic's chapters by status. */
+  chapters: readonly ChapterSummary[]
+}) {
   if (topics.length === 0) {
     return (
       <EmptyState title="No topics yet">
@@ -31,7 +39,7 @@ export function TopicGrid({ topics }: { topics: readonly Topic[] }) {
             <span>
               <p className="font-medium group-hover:text-primary">{t.name}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {t.chapterCount} {t.chapterCount === 1 ? 'chapter' : 'chapters'}
+                {chapterCountLabel(chapters.filter((c) => c.topicId === t.id))}
               </p>
             </span>
           </Link>

@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button'
 
 import { topicQuery, useDeleteTopic } from '../../api/queries'
 import { StatusBadge } from '../../components/StatusBadge'
-import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { DeleteAction } from '../../components/DeleteAction'
 import { EmptyState } from '../../components/EmptyState'
-import { PageHeader } from '../../components/PageHeader'
-import { formatPct } from '../../lib/format'
+import { backLinkClass, PageHeader } from '../../components/PageHeader'
+import { formatPct, plural } from '../../lib/format'
 
 export const Route = createFileRoute('/_app/topics/$topicId')({
   loader: ({ context, params }) => context.queryClient.ensureQueryData(topicQuery(params.topicId)),
@@ -27,22 +27,27 @@ function TopicPage() {
       <PageHeader
         title={data.topic.name}
         subtitle={
-          <Link to="/topics" className="hover:text-primary hover:underline">
+          <Link to="/topics" className={backLinkClass}>
             ← Topics
           </Link>
         }
         actions={
-          <div className="flex gap-2">
-            <ConfirmDialog
-              trigger={
-                <Button variant="destructive" size="lg" disabled={del.isPending}>
-                  Delete topic
-                </Button>
-              }
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="lg" asChild>
+              <Link to="/upload" search={{ topicId }}>
+                Add chapter
+              </Link>
+            </Button>
+            <Button size="lg" asChild>
+              <Link to="/quizzes" search={{ topicId }}>
+                Quiz this topic
+              </Link>
+            </Button>
+            <DeleteAction
+              label="Delete topic"
+              disabled={del.isPending}
               title={`Delete "${data.topic.name}"?`}
               description="This deletes all its chapters and questions. Past attempts stay in History. It can't be undone."
-              confirmLabel="Delete topic"
-              destructive
               onConfirm={() => {
                 del.mutate(
                   { id: topicId, chapterIds: data.chapters.map((c) => c.id) },
@@ -56,16 +61,6 @@ function TopicPage() {
                 )
               }}
             />
-            <Button variant="outline" size="lg" asChild>
-              <Link to="/upload" search={{ topicId }}>
-                Add chapter
-              </Link>
-            </Button>
-            <Button size="lg" asChild>
-              <Link to="/quizzes" search={{ topicId }}>
-                Quiz this topic
-              </Link>
-            </Button>
           </div>
         }
       />
@@ -83,23 +78,39 @@ function TopicPage() {
       ) : (
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
           {data.chapters.map((c) => (
-            <li key={c.id}>
-              <Link
-                to="/chapters/$chapterId"
-                params={{ chapterId: c.id }}
-                className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"
-              >
-                <div>
-                  <p className="font-medium">{c.title}</p>
+            <li
+              key={c.id}
+              className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"
+            >
+              <div className="min-w-0">
+                {/* Stretched over the row, so the whole row opens the chapter. */}
+                <Link
+                  to="/chapters/$chapterId"
+                  params={{ chapterId: c.id }}
+                  className="font-medium break-words after:absolute after:inset-0"
+                >
+                  {c.title}
+                </Link>
+                {c.status === 'failed' ? (
+                  <Link
+                    to="/upload"
+                    search={{ topicId }}
+                    className="relative mt-0.5 block text-sm text-destructive hover:underline"
+                  >
+                    Generation failed: re-upload
+                  </Link>
+                ) : (
                   <p className="mt-0.5 text-sm text-muted-foreground">
                     {c.status === 'ready'
-                      ? `${String(c.questionCount)} questions · ${String(c.attemptCount)} attempts`
-                      : ' '}
-                    {c.bestScorePct !== null && ` · best ${formatPct(c.bestScorePct)}`}
+                      ? `${plural(c.questionCount, 'question')} · ${plural(c.attemptCount, 'attempt')}`
+                      : 'Generating questions…'}
+                    {c.status === 'ready' &&
+                      c.bestScorePct !== null &&
+                      ` · best ${formatPct(c.bestScorePct)}`}
                   </p>
-                </div>
-                <StatusBadge status={c.status} />
-              </Link>
+                )}
+              </div>
+              <StatusBadge status={c.status} />
             </li>
           ))}
         </ul>

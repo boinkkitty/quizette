@@ -49,20 +49,37 @@ export async function expectNoOverflow(page: Page): Promise<void> {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   )
-  expect(overflow, 'horizontal overflow (px)').toBeLessThanOrEqual(0)
+  expect.soft(overflow, `horizontal overflow (px) on ${page.url()}`).toBeLessThanOrEqual(0)
 }
 
-/** Fails if the page scrolls sideways or a control in main is smaller than 44 × 44 px. */
+/**
+ * Fails if the page scrolls sideways or a control in main is smaller than 44 × 44 px. Links inside a
+ * sentence (a `p`) are exempt, as WCAG 2.5.8 exempts inline targets, and so are disabled and
+ * visually hidden controls, and a control whose label is big enough. Wait for the page to settle first: a control that is leaving is 0 × 0.
+ */
 export async function expectMobileFriendly(page: Page): Promise<void> {
   await expectNoOverflow(page)
-  const controls = page.getByRole('main').locator('button:visible, a:visible, input:visible')
-  for (const control of await controls.all()) {
-    const box = await control.boundingBox()
-    if (box === null) continue
-    const name = (await control.textContent())?.trim() ?? ''
-    expect(Math.round(box.height), `height of "${name}"`).toBeGreaterThanOrEqual(44)
-    expect(Math.round(box.width), `width of "${name}"`).toBeGreaterThanOrEqual(44)
-  }
+  const small = await page
+    .getByRole('main')
+    .locator('button:visible, a:visible, input:visible')
+    .evaluateAll((controls) =>
+      controls.flatMap((c) => {
+        if (c.tagName === 'A' && c.closest('p') !== null) return []
+        if (c.matches(':disabled')) return []
+        const { width, height } = c.getBoundingClientRect()
+        // Visually hidden controls (sr-only) behind a larger visible label.
+        if (width <= 1 || height <= 1) return []
+        const big = (r: DOMRect) => Math.round(r.width) >= 44 && Math.round(r.height) >= 44
+        if (big(c.getBoundingClientRect())) return []
+        // A small radio or checkbox is fine when its label, which also toggles it, is the target.
+        const labels = 'labels' in c ? [...((c as HTMLButtonElement).labels ?? [])] : []
+        if (labels.some((l) => big(l.getBoundingClientRect()))) return []
+        const name =
+          c.getAttribute('aria-label') ?? (c.textContent?.trim() || c.outerHTML.slice(0, 80))
+        return [`"${name}" ${String(Math.round(width))}×${String(Math.round(height))}`]
+      }),
+    )
+  expect.soft(small, `controls under 44 × 44 px on ${page.url()}`).toEqual([])
 }
 
 /** Clicks through every question without answering and submits anyway. */

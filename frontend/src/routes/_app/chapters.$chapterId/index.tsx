@@ -11,9 +11,9 @@ import { attemptsQuery, chapterQuery, useDeleteChapter } from '../../../api/quer
 import { ErrorMessage } from '../../../components/ErrorMessage'
 import { JobProgress } from '../../../components/JobProgress'
 import { StatusBadge } from '../../../components/StatusBadge'
-import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { DeleteAction } from '../../../components/DeleteAction'
 import { EmptyState } from '../../../components/EmptyState'
-import { PageHeader } from '../../../components/PageHeader'
+import { backLinkClass, PageHeader } from '../../../components/PageHeader'
 import { Spinner } from '../../../components/Spinner'
 import { formatDate, formatPct, formatPoints } from '../../../lib/format'
 
@@ -34,11 +34,11 @@ function ChapterPage() {
       <PageHeader
         title={chapter.title}
         subtitle={
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2">
             <Link
               to="/topics/$topicId"
               params={{ topicId: chapter.topicId }}
-              className="hover:text-primary hover:underline"
+              className={backLinkClass}
             >
               ← {chapter.topicName}
             </Link>
@@ -47,26 +47,6 @@ function ChapterPage() {
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            <ConfirmDialog
-              trigger={
-                <Button variant="destructive" size="lg" disabled={del.isPending}>
-                  Delete chapter
-                </Button>
-              }
-              title={`Delete "${chapter.title}"?`}
-              description="This deletes its questions. Past attempts stay in History. It can't be undone."
-              confirmLabel="Delete chapter"
-              destructive
-              onConfirm={() => {
-                del.mutate(chapterId, {
-                  onSuccess: () => {
-                    toast.success(`Deleted "${chapter.title}"`)
-                    void navigate({ to: '/topics/$topicId', params: { topicId: chapter.topicId } })
-                  },
-                  onError: () => toast.error('Could not delete the chapter. Please try again.'),
-                })
-              }}
-            />
             {chapter.status === 'ready' && (
               <>
                 <Button variant="outline" size="lg" asChild>
@@ -81,6 +61,21 @@ function ChapterPage() {
                 </Button>
               </>
             )}
+            <DeleteAction
+              label="Delete chapter"
+              disabled={del.isPending}
+              title={`Delete "${chapter.title}"?`}
+              description="This deletes its questions. Past attempts stay in History. It can't be undone."
+              onConfirm={() => {
+                del.mutate(chapterId, {
+                  onSuccess: () => {
+                    toast.success(`Deleted "${chapter.title}"`)
+                    void navigate({ to: '/topics/$topicId', params: { topicId: chapter.topicId } })
+                  },
+                  onError: () => toast.error('Could not delete the chapter. Please try again.'),
+                })
+              }}
+            />
           </div>
         }
       />
@@ -126,37 +121,39 @@ function AttemptHistory({ chapterId }: { chapterId: string }) {
           <h2 className="font-semibold">Attempt history</h2>
         </CardTitle>
       </CardHeader>
-      <table className="w-full text-left text-sm">
-        <thead className="border-b bg-muted text-xs text-muted-foreground uppercase">
-          <tr>
-            <th className="px-6 py-2 font-medium">Date</th>
-            <th className="px-6 py-2 font-medium">Questions</th>
-            <th className="px-6 py-2 font-medium">Score</th>
-            <th className="px-6 py-2" />
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {attempts.map((a) => (
-            <tr key={a.id}>
-              <td className="px-6 py-3">{formatDate(a.submittedAt)}</td>
-              <td className="px-6 py-3">{a.count}</td>
-              <td className="px-6 py-3 font-medium">
-                {formatPoints(a.totalScore)} / {a.maxScore}{' '}
-                <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
-              </td>
-              <td className="px-6 py-3 text-right">
-                <Link
-                  to="/history/$attemptId"
-                  params={{ attemptId: a.id }}
-                  className="font-medium text-primary hover:underline"
-                >
-                  Review
-                </Link>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b bg-muted text-xs text-muted-foreground uppercase">
+            <tr>
+              <th className="px-4 py-2 sm:px-6 font-medium">Date</th>
+              <th className="px-4 py-2 sm:px-6 font-medium">Questions</th>
+              <th className="px-4 py-2 sm:px-6 font-medium">Score</th>
+              <th className="px-4 py-2 sm:px-6" />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y">
+            {attempts.map((a) => (
+              <tr key={a.id}>
+                <td className="px-4 py-1.5 sm:px-6">{formatDate(a.submittedAt)}</td>
+                <td className="px-4 py-1.5 sm:px-6">{a.count}</td>
+                <td className="px-4 py-1.5 sm:px-6 font-medium">
+                  {formatPoints(a.totalScore)} / {a.maxScore}{' '}
+                  <span className="text-muted-foreground">({formatPct(a.scorePct)})</span>
+                </td>
+                <td className="px-4 py-1.5 sm:px-6 text-right">
+                  <Link
+                    to="/history/$attemptId"
+                    params={{ attemptId: a.id }}
+                    className="inline-flex min-h-11 items-center font-medium text-primary hover:underline"
+                  >
+                    Review
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Card>
   )
 }

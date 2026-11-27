@@ -60,7 +60,7 @@ test('upload a PDF, take a quiz with partial MRQ credit, see history', async ({ 
 
   // Topic page reflects the attempt.
   await page.getByRole('link', { name: '← Biology' }).click()
-  await expect(page.getByText('10 questions · 1 attempts')).toBeVisible()
+  await expect(page.getByText('10 questions · 1 attempt')).toBeVisible()
 
   // The sidebar's Quizzes and History pages list the chapter and the attempt.
   const nav = page.getByRole('navigation', { name: 'Main' })
