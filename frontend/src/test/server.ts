@@ -240,6 +240,7 @@ export const handlers = [
   http.get('/api/auth/me', () => HttpResponse.json(user)),
   http.get('/api/auth/providers', () => HttpResponse.json({ providers: ['google', 'github'] })),
   http.get('/api/topics', () => HttpResponse.json(topics)),
+  http.get('/api/chapters', () => HttpResponse.json([chapterSummary()])),
   http.get('/api/dashboard', () => HttpResponse.json(dashboard())),
 ]
 

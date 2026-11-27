@@ -21,7 +21,7 @@ import {
 import { Chip } from '../../../components/Chip'
 import { PageHeader } from '../../../components/PageHeader'
 import { QuestionReview } from '../../../components/QuestionReview'
-import { formatDate, formatPct, formatPoints } from '../../../lib/format'
+import { formatDate, formatPct, formatPoints, plural } from '../../../lib/format'
 
 export const Route = createFileRoute('/_app/history/$attemptId')({
   loader: ({ context, params }) =>
@@ -71,7 +71,7 @@ function ResultsPage() {
         title={scope.name}
         subtitle={`${
           scope.scope === 'topic'
-            ? `Whole-topic quiz · ${String(chapters.length)} chapters`
+            ? `Whole-topic quiz · ${plural(chapters.length, 'chapter')}`
             : `Chapter quiz · ${attempt.topicName}`
         } · ${formatDate(attempt.submittedAt)}`}
       />

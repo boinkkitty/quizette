@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 
 import { chapterQuery, questionSetQuery } from '../../../api/queries'
 import { EmptyState } from '../../../components/EmptyState'
-import { PageHeader } from '../../../components/PageHeader'
+import { backLinkClass, PageHeader } from '../../../components/PageHeader'
 import { QuestionWalkthrough } from '../../../components/QuestionWalkthrough'
 
 export const Route = createFileRoute('/_app/chapters/$chapterId/questions')({
@@ -24,11 +24,7 @@ function ViewQuestionsPage() {
   const { data: chapter } = useSuspenseQuery(chapterQuery(chapterId))
   const { data: set } = useSuspenseQuery(questionSetQuery(chapterId))
   const back = (
-    <Link
-      to="/chapters/$chapterId"
-      params={{ chapterId }}
-      className="hover:text-primary hover:underline"
-    >
+    <Link to="/chapters/$chapterId" params={{ chapterId }} className={backLinkClass}>
       ← {chapter.title}
     </Link>
   )

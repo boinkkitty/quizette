@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 
-import { jobQuery } from '../api/queries'
+import { jobQuery, useRefreshWhenJobDone } from '../api/queries'
 import { ErrorMessage } from './ErrorMessage'
 import { Spinner } from './Spinner'
 
@@ -29,6 +29,7 @@ export function JobProgress({
   ready?: ReactNode
 }) {
   const { data: job, error } = useQuery(jobQuery(jobId))
+  useRefreshWhenJobDone(job, chapterId)
   if (error !== null) return <ErrorMessage error={error} />
   if (job === undefined) return <Spinner />
 

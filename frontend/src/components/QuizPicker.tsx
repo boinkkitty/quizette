@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 
 import { useDrawQuiz } from '../api/queries'
 import type { ChapterSummary, ScopeRef, Topic } from '../api/schemas'
-import { formatPct } from '../lib/format'
+import { chapterCountLabel, formatPct, plural } from '../lib/format'
 import { splitAcrossChapters } from '../lib/split'
 import { startQuiz } from '../lib/quizSlot'
 import { EmptyState } from './EmptyState'
@@ -41,6 +41,8 @@ interface TopicRow {
   ready: ChapterRow[]
   /** Chapters still generating or failed. */
   notReady: number
+  /** Every chapter counted by status, like "3 chapters · 1 failed". */
+  chapterLabel: string
   pool: number
   perf: Perf
 }
@@ -74,6 +76,7 @@ function buildModel(topics: readonly Topic[], chapters: readonly ChapterSummary[
       name: t.name,
       ready,
       notReady: mine.length - ready.length,
+      chapterLabel: chapterCountLabel(mine),
       pool: ready.reduce((s, c) => s + c.questionCount, 0),
       perf: { attempts: t.attemptCount, lastPct: t.lastScorePct, bestPct: t.bestScorePct },
     }
@@ -126,8 +129,6 @@ function resolve(model: readonly TopicRow[], pre: Preselect): Choice | null {
   }
   return null
 }
-
-const plural = (n: number, one: string, many = `${one}s`) => `${String(n)} ${n === 1 ? one : many}`
 
 function PerfLine({ perf, className }: { perf: Perf; className?: string }) {
   if (perf.attempts === 0) return <span className={className}>Not quizzed yet</span>
@@ -209,7 +210,7 @@ export function QuizPicker({ topics, chapters, preselect = {} }: QuizPickerProps
                   ) : (
                     <>
                       <span className="mt-1 block text-sm text-muted-foreground">
-                        {plural(t.ready.length, 'chapter')} · {plural(t.pool, 'question')}
+                        {t.chapterLabel} · {plural(t.pool, 'question')}
                       </span>
                       <PerfLine perf={t.perf} className="block text-xs text-muted-foreground" />
                     </>

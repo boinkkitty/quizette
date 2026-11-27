@@ -55,8 +55,9 @@ function RunQuiz({ saved }: { saved: NonNullable<ReturnType<typeof loadQuiz>> })
     )
   }
 
+  // One centred column, so the header lines up with the runner below it.
   return (
-    <>
+    <div className="mx-auto max-w-2xl">
       <PageHeader
         title={scopeTitle(quiz)}
         subtitle={`${String(quiz.questions.length)}-question quiz`}
@@ -99,6 +100,6 @@ function RunQuiz({ saved }: { saved: NonNullable<ReturnType<typeof loadQuiz>> })
           })
         }}
       />
-    </>
+    </div>
   )
 }

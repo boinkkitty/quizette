@@ -1,5 +1,5 @@
 import { FileUpIcon } from 'lucide-react'
-import { type DragEvent, type FormEvent, useState } from 'react'
+import { type DragEvent, type FormEvent, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,9 +20,11 @@ interface Props {
   defaultTopicId?: string | undefined
   pending: boolean
   onSubmit: (input: UploadInput) => void
+  /** Called when a submit fails the form's own checks, e.g. to clear an earlier upload error. */
+  onInvalid?: () => void
 }
 
-export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props) {
+export function UploadForm({ topics, defaultTopicId, pending, onSubmit, onInvalid }: Props) {
   const initialTopic =
     defaultTopicId !== undefined && topics.some((t) => t.id === defaultTopicId)
       ? defaultTopicId
@@ -35,6 +37,8 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
   const [fileError, setFileError] = useState<string | undefined>()
   const [topicError, setTopicError] = useState<string | undefined>()
   const [dragging, setDragging] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
+  const newTopicInput = useRef<HTMLInputElement>(null)
 
   const pickFile = (f: File | undefined) => {
     if (f === undefined) return
@@ -54,10 +58,14 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
     e.preventDefault()
     if (file === null) {
       setFileError('Choose a PDF to upload.')
+      onInvalid?.()
+      fileInput.current?.focus()
       return
     }
     if (topicChoice === NEW_TOPIC && newTopic.trim() === '') {
       setTopicError('Enter a name for the new topic.')
+      onInvalid?.()
+      newTopicInput.current?.focus()
       return
     }
     setTopicError(undefined)
@@ -90,6 +98,7 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
       >
         <FileUpIcon className="mb-3 size-8 text-primary" aria-hidden />
         <input
+          ref={fileInput}
           type="file"
           accept="application/pdf,.pdf"
           className="sr-only"
@@ -141,6 +150,7 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
             {(c) => (
               <Input
                 {...c}
+                ref={newTopicInput}
                 value={newTopic}
                 onChange={(e) => setNewTopic(e.target.value)}
                 placeholder="e.g. Biology"
@@ -159,7 +169,7 @@ export function UploadForm({ topics, defaultTopicId, pending, onSubmit }: Props)
             />
           )}
         </Field>
-        <Field label="Questions to generate" hint="The bank you'll practise from">
+        <Field label="Questions to generate" hint="The bank you'll practice from">
           {(c) => (
             <NativeSelect
               className="w-full"

@@ -9,7 +9,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { ScorePill } from '../../components/ScorePill'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
-import { formatPct } from '../../lib/format'
+import { formatPct, plural } from '../../lib/format'
 
 export const Route = createFileRoute('/_app/')({
   loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQuery),
@@ -31,9 +31,12 @@ function DashboardPage() {
         title="Dashboard"
         subtitle={<InProgress generating={d.generatingCount} failed={d.failedCount} />}
         actions={
-          <Button size="lg" asChild>
-            <Link to="/quizzes">Start a quiz</Link>
-          </Button>
+          // Only once there is something to quiz: otherwise Quizzes says "Nothing to quiz yet".
+          d.stats.readyChapters > 0 && (
+            <Button size="lg" asChild>
+              <Link to="/quizzes">Start a quiz</Link>
+            </Button>
+          )
         }
       />
       <div className="space-y-8">
@@ -106,7 +109,11 @@ function Stats({ stats: s }: { stats: Dashboard['stats'] }) {
       <Stat
         label="Average score"
         value={s.averageScorePct === null ? '–' : formatPct(s.averageScorePct)}
-        hint={`over ${String(s.attemptCount)} ${s.attemptCount === 1 ? 'quiz' : 'quizzes'}`}
+        hint={
+          s.attemptCount === 0
+            ? 'No quizzes yet'
+            : `over ${plural(s.attemptCount, 'quiz', 'quizzes')}`
+        }
       />
       <Stat label="Quizzes this week" value={String(s.quizzesThisWeek)} />
       <Stat label="Questions answered" value={String(s.questionsAnswered)} />
@@ -129,11 +136,11 @@ function ByTopic({ topics }: { topics: Dashboard['topics'] }) {
             <Link
               to="/topics/$topicId"
               params={{ topicId: t.id }}
-              className="min-w-0 flex-1 basis-40"
+              className="flex min-h-11 min-w-0 flex-1 basis-40 flex-col justify-center"
             >
               <span className="block truncate font-medium hover:text-primary">{t.name}</span>
               <span className="block text-xs text-muted-foreground">
-                {t.chaptersQuizzed} of {t.readyChapters} chapters quizzed
+                {t.chaptersQuizzed} of {plural(t.readyChapters, 'chapter')} quizzed
               </span>
             </Link>
             <div className="flex w-full items-center gap-2 sm:w-48">
@@ -148,7 +155,7 @@ function ByTopic({ topics }: { topics: Dashboard['topics'] }) {
               </span>
             </div>
             {t.readyChapters > 0 ? (
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" className="h-11 px-3 md:h-7 md:px-2.5" asChild>
                 <Link to="/quizzes" search={{ topicId: t.id }}>
                   Quiz topic
                 </Link>
@@ -226,7 +233,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
           )}
           <span className="block truncate text-xs text-muted-foreground">
             {item.scope === 'chapter' && `${item.topicName} · `}
-            {item.count} questions
+            {plural(item.count, 'question')}
           </span>
         </span>
         <ScorePill pct={item.scorePct} className="px-2 py-0.5 text-xs" />
@@ -249,7 +256,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
             ? 'generating questions…'
             : item.status === 'failed'
               ? 'generation failed'
-              : `${String(item.questionCount)} questions`}
+              : plural(item.questionCount, 'question')}
         </span>
       </span>
     </Link>

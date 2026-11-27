@@ -99,3 +99,13 @@
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.623 0.214 259.815);
 }
+
+/* PendingBar: a segment sweeping left to right. */
+@keyframes pending-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}

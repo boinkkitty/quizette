@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod'
 
-import { meQuery } from '../api/queries'
+import { meQuery, providersQuery } from '../api/queries'
 import { AuthForm } from '../components/AuthForm'
 
 export const authSearchSchema = z.object({
@@ -12,7 +12,13 @@ export const authSearchSchema = z.object({
 export const Route = createFileRoute('/login')({
   validateSearch: authSearchSchema,
   beforeLoad: async ({ context, search }) => {
-    const user = await context.queryClient.ensureQueryData(meQuery)
+    // Fetch the sign-in providers alongside the session check, so the buttons render with the
+    // form instead of pushing it down when they arrive. prefetchQuery never throws: without
+    // providers the form still works.
+    const [user] = await Promise.all([
+      context.queryClient.ensureQueryData(meQuery),
+      context.queryClient.prefetchQuery(providersQuery),
+    ])
     if (user !== null) throw redirect({ to: search.redirect })
   },
   component: function LoginPage() {

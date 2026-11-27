@@ -19,7 +19,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { cn } from '@/lib/utils'
 
 import type { Question } from '../api/schemas'
-import { questionTypeLabel } from '../lib/format'
+import { plural, questionText, questionTypeLabel } from '../lib/format'
 import type { QuizProgress } from '../lib/quizSlot'
 import { Spinner } from './Spinner'
 
@@ -104,10 +104,10 @@ export function QuizRunner({ questions, initial, onProgress, submitting, onSubmi
             {questionTypeLabel[question.type]}
           </p>
           <fieldset>
-            <legend className="text-lg font-medium">{question.prompt}</legend>
+            <legend className="text-lg font-medium">{questionText(question.prompt)}</legend>
             {multi && (
               <p className="mt-1 text-sm text-muted-foreground">
-                Select all that apply. Wrong picks cancel out right ones.
+                Wrong picks cancel out right ones.
               </p>
             )}
             {multi ? (
@@ -175,8 +175,8 @@ export function QuizRunner({ questions, initial, onProgress, submitting, onSubmi
           <AlertDialogHeader>
             <AlertDialogTitle>Submit with unanswered questions?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have {unanswered} unanswered question{unanswered === 1 ? '' : 's'}. They will
-              score 0.
+              You have {plural(unanswered, 'unanswered question')}.{' '}
+              {unanswered === 1 ? 'It' : 'They'} will score 0.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -11,7 +11,7 @@ import { Chip } from '../../../components/Chip'
 import { EmptyState } from '../../../components/EmptyState'
 import { PageHeader } from '../../../components/PageHeader'
 import { ScorePill } from '../../../components/ScorePill'
-import { formatDate } from '../../../lib/format'
+import { formatDate, plural } from '../../../lib/format'
 
 export const Route = createFileRoute('/_app/history/')({
   loader: ({ context }) => context.queryClient.ensureQueryData(allAttemptsQuery),
@@ -32,7 +32,7 @@ function HistoryPage() {
   const shown = attempts.filter((a) => filter === 'all' || a.scope === filter)
   return (
     <>
-      <PageHeader title="History" subtitle="Your quizzes, newest first." />
+      <PageHeader title="History" subtitle="Quiz attempts, newest → oldest." />
       {attempts.length === 0 ? (
         <EmptyState title="No quizzes yet">
           <Link to="/upload" className="font-medium text-primary hover:underline">
@@ -95,8 +95,8 @@ function HistoryRow({ attempt: a }: { attempt: AttemptHistoryItem }) {
           {deleted && <span className="font-normal"> (deleted)</span>}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {isTopicQuiz ? `${String(a.chapterCount)} chapters` : a.topicName} · {a.count} questions ·{' '}
-          {formatDate(a.submittedAt)}
+          {isTopicQuiz ? plural(a.chapterCount, 'chapter') : a.topicName} ·{' '}
+          {plural(a.count, 'question')} · {formatDate(a.submittedAt)}
         </p>
       </div>
       <ScorePill pct={a.scorePct} />

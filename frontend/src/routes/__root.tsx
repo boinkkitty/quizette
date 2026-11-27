@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router'
 
+import { PendingBar } from '@/components/PendingBar'
 import { Toaster } from '@/components/ui/sonner'
 
 export interface RouterContext {
@@ -23,6 +24,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function RootLayout() {
   return (
     <>
+      <PendingBar />
       <div className="min-h-screen bg-background">
         <Outlet />
       </div>

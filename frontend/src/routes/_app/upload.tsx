@@ -39,6 +39,7 @@ function UploadPage() {
               defaultTopicId={topicId}
               pending={upload.isPending}
               onSubmit={(input) => upload.mutate(input)}
+              onInvalid={() => upload.reset()}
             />
           </CardContent>
         </Card>

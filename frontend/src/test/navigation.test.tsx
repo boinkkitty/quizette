@@ -25,6 +25,94 @@ describe('topics browser', () => {
   })
 })
 
+describe('chapter counts', () => {
+  /** Topic t1 (Biology) with two ready chapters and a failed one. */
+  function serveChapters() {
+    server.use(
+      http.get('/api/topics', () => HttpResponse.json([topic({ chapterCount: 3 })])),
+      http.get('/api/chapters', () =>
+        HttpResponse.json([
+          chapterSummary(),
+          chapterSummary({ id: 'c2', title: 'Genetics' }),
+          chapterSummary({ id: 'c3', title: 'Ecology', status: 'failed', questionCount: 0 }),
+        ]),
+      ),
+    )
+  }
+
+  it('reads the same on Topics as on Quizzes', async () => {
+    serveChapters()
+    renderApp('/topics')
+    expect(await screen.findByRole('link', { name: /Biology/ })).toHaveTextContent(
+      '3 chapters · 1 failed',
+    )
+  })
+
+  it('reads the same on Quizzes as on Topics', async () => {
+    serveChapters()
+    renderApp('/quizzes')
+    expect(await screen.findByRole('button', { name: /Biology/ })).toHaveTextContent(
+      '3 chapters · 1 failed',
+    )
+  })
+})
+
+describe('deleting from lists', () => {
+  it('deletes a topic from its card on Topics', async () => {
+    let deleted = false
+    server.use(
+      http.get('/api/topics', () =>
+        HttpResponse.json(deleted ? [] : [topic(), topic({ id: 't2', name: 'Algebra' })]),
+      ),
+      http.delete('/api/topics/t1', () => {
+        deleted = true
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    const u = userEvent.setup()
+    renderApp('/topics')
+    await u.click(await screen.findByRole('button', { name: 'Delete topic Biology' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Delete "Biology"?')
+    await u.click(within(dialog).getByRole('button', { name: 'Delete topic' }))
+    await waitFor(() => expect(deleted).toBe(true))
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: /Biology/ })).not.toBeInTheDocument(),
+    )
+  })
+
+  it('deletes a chapter from its row on the topic page', async () => {
+    let deleted = false
+    server.use(
+      http.get('/api/topics/t1', () =>
+        HttpResponse.json({
+          topic: topic({ chapterCount: deleted ? 1 : 2 }),
+          chapters: [
+            ...(deleted ? [] : [chapterSummary()]),
+            chapterSummary({ id: 'c2', title: 'Genetics' }),
+          ],
+        }),
+      ),
+      http.delete('/api/chapters/c1', () => {
+        deleted = true
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    const u = userEvent.setup()
+    const { router } = renderApp('/topics/t1')
+    await u.click(await screen.findByRole('button', { name: 'Delete chapter Cells' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Delete "Cells"?')
+    await u.click(within(dialog).getByRole('button', { name: 'Delete chapter' }))
+    await waitFor(() => expect(deleted).toBe(true))
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: 'Cells' })).not.toBeInTheDocument(),
+    )
+    expect(router.state.location.pathname).toBe('/topics/t1')
+    expect(screen.getByRole('link', { name: 'Genetics' })).toBeInTheDocument()
+  })
+})
+
 describe('topic page', () => {
   /** Serves topic t1 (Biology) with a chapter in each status. */
   function serveTopic() {
@@ -79,6 +167,15 @@ describe('topic page', () => {
       'href',
       '/quizzes?topicId=t1',
     )
+  })
+
+  it('offers to re-upload a chapter whose generation failed', async () => {
+    serveTopic()
+    renderApp('/topics/t1')
+    expect(
+      await screen.findByRole('link', { name: 'Generation failed: re-upload' }),
+    ).toHaveAttribute('href', '/upload?topicId=t1')
+    expect(screen.getAllByRole('link', { name: /re-upload/ })).toHaveLength(1)
   })
 
   it('goes to Topics after deleting the topic', async () => {
@@ -176,6 +273,35 @@ describe('upload page', () => {
       ['Go to chapter', '/chapters/c1'],
       ['Upload another PDF', null],
     ])
+  })
+})
+
+describe('upload errors', () => {
+  it("drops a failed upload's error once the form finds a new problem, and focuses that field", async () => {
+    server.use(
+      http.post('/api/documents', () =>
+        HttpResponse.json(
+          { error: 'validation', message: 'document must be a PDF' },
+          { status: 400 },
+        ),
+      ),
+    )
+    const u = userEvent.setup()
+    renderApp('/upload')
+    await u.upload(
+      await screen.findByLabelText('PDF file'),
+      new File(['%PDF-1.4'], 'cells.pdf', { type: 'application/pdf' }),
+    )
+    await u.selectOptions(screen.getByRole('combobox', { name: 'Topic' }), '+ New topic…')
+    await u.type(screen.getByLabelText('New topic name'), 'Chemistry')
+    await u.click(screen.getByRole('button', { name: 'Generate questions' }))
+    expect(await screen.findByText('Upload failed')).toBeInTheDocument()
+
+    await u.clear(screen.getByLabelText('New topic name'))
+    await u.click(screen.getByRole('button', { name: 'Generate questions' }))
+    expect(screen.getByText('Enter a name for the new topic.')).toBeInTheDocument()
+    expect(screen.queryByText('Upload failed')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('New topic name')).toHaveFocus()
   })
 })
 

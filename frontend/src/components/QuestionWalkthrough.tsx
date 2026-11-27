@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
 import type { Question } from '../api/schemas'
-import { questionTypeLabel } from '../lib/format'
+import { questionText, questionTypeLabel } from '../lib/format'
 
 interface Props {
   /** Questions with answers revealed (from the question-set endpoint). */
@@ -60,7 +60,7 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
           <p className="text-xs font-medium tracking-wide text-primary uppercase">
             {questionTypeLabel[question.type]}
           </p>
-          <h2 className="text-lg font-medium">{question.prompt}</h2>
+          <h2 className="text-lg font-medium">{questionText(question.prompt)}</h2>
 
           <ol className="grid gap-2" aria-label="Options">
             {question.options.map((opt, i) => {
@@ -105,7 +105,7 @@ export function QuestionWalkthrough({ questions, finish }: Props) {
               </div>
             )}
 
-          <Button variant={shown ? 'outline' : 'secondary'} onClick={toggle}>
+          <Button variant={shown ? 'outline' : 'secondary'} size="lg" onClick={toggle}>
             {shown ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />}
             {shown ? 'Hide answer' : 'Show answer'}
           </Button>
