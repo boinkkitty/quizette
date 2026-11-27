@@ -40,6 +40,7 @@ Rules per type (questions that break these are discarded):
 - true_false: options exactly ["True", "False"], exactly 1 correct index.
 - mrq ("select all that apply"): 3 to 5 distinct options, at least 1 correct; any number may be correct,
   including all. Vary how many are correct, so the number of correct options can't be guessed.
+  Don't write "(Select all that apply)" in the prompt: the app labels the question type itself.
 
 Quality rules:
 - Cover different topics across the document; avoid near-duplicate questions.

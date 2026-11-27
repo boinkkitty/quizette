@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 
-import { topicQuery, useDeleteTopic } from '../../api/queries'
+import type { ChapterSummary } from '../../api/schemas'
+import { topicQuery, useDeleteChapter, useDeleteTopic } from '../../api/queries'
 import { StatusBadge } from '../../components/StatusBadge'
 import { DeleteAction } from '../../components/DeleteAction'
 import { EmptyState } from '../../components/EmptyState'
@@ -110,11 +111,36 @@ function TopicPage() {
                   </p>
                 )}
               </div>
-              <StatusBadge status={c.status} />
+              <div className="flex shrink-0 items-center gap-2">
+                <StatusBadge status={c.status} />
+                <DeleteChapter chapter={c} />
+              </div>
             </li>
           ))}
         </ul>
       )}
     </>
+  )
+}
+
+/** A chapter row's bin; the row stays on this page, which refetches without the chapter. */
+function DeleteChapter({ chapter }: { chapter: ChapterSummary }) {
+  const del = useDeleteChapter()
+  return (
+    <DeleteAction
+      label="Delete chapter"
+      name={chapter.title}
+      // Above the row's stretched link, so a click deletes rather than opens the chapter.
+      className="relative"
+      disabled={del.isPending}
+      title={`Delete "${chapter.title}"?`}
+      description="This deletes its questions. Past attempts stay in History. It can't be undone."
+      onConfirm={() => {
+        del.mutate(chapter.id, {
+          onSuccess: () => toast.success(`Deleted "${chapter.title}"`),
+          onError: () => toast.error('Could not delete the chapter. Please try again.'),
+        })
+      }}
+    />
   )
 }

@@ -40,6 +40,14 @@ export const questionTypeLabel: Record<QuestionType, string> = {
   mrq: 'Select all that apply',
 }
 
+/**
+ * questionText is a question's prompt without a trailing "(Select all that apply)", which the
+ * model sometimes adds although the question's type label already says it.
+ */
+export function questionText(prompt: string): string {
+  return prompt.replace(/\s*\(\s*select all that apply\.?\s*\)\s*\.?\s*$/i, '')
+}
+
 /** Multiples of 5 from 5 up to max (inclusive). */
 export function countOptions(max: number): number[] {
   const out: number[] = []

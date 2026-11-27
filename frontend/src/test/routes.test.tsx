@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 
 import type { Attempt } from '../api/schemas'
@@ -35,6 +35,25 @@ describe('routing', () => {
     expect(links[0]).toHaveAttribute('href', '/api/auth/google/start')
     expect(github).toHaveAttribute('href', '/api/auth/github/start')
   })
+
+  it.each([
+    ['/login', 'Log in to Quizette'],
+    ['/signup', 'Create your account'],
+  ])(
+    'shows %s with its sign-in buttons already in place, so the form does not jump',
+    async (path, heading) => {
+      server.use(
+        http.get('/api/auth/me', unauthorized),
+        http.get('/api/auth/providers', async () => {
+          await delay(50)
+          return HttpResponse.json({ providers: ['google'] })
+        }),
+      )
+      renderApp(path)
+      await screen.findByRole('heading', { name: heading })
+      expect(screen.getByRole('link', { name: 'Continue with Google' })).toBeInTheDocument()
+    },
+  )
 
   it('logs in and lands on the requested page', async () => {
     let loggedIn = false

@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 import type { Answer, Question } from '../api/schemas'
-import { formatPoints, questionTypeLabel } from '../lib/format'
+import { formatPoints, questionText, questionTypeLabel } from '../lib/format'
 
 /** Shows a question with its correct answer(s) and, optionally, the user's answer. */
 export function QuestionReview({
@@ -34,7 +34,7 @@ export function QuestionReview({
             </Badge>
           )}
         </div>
-        <p className="font-medium">{question.prompt}</p>
+        <p className="font-medium">{questionText(question.prompt)}</p>
         <ul className="space-y-1.5">
           {question.options.map((opt, i) => {
             const isCorrect = correct.has(i)

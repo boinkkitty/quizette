@@ -56,4 +56,41 @@ describe('QuizRunner', () => {
     await user.click(await screen.findByRole('button', { name: 'Submit anyway' }))
     expect(onSubmit).toHaveBeenCalledOnce()
   })
+
+  it('says "it" when one question is unanswered', async () => {
+    const user = userEvent.setup()
+    render(
+      <QuizRunner
+        questions={attempt().questions}
+        submitting={false}
+        onSubmit={vi.fn<(r: Responses) => void>()}
+      />,
+    )
+    await user.click(screen.getByRole('radio', { name: 'Golgi' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('radio', { name: 'True' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Submit quiz' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      'You have 1 unanswered question. It will score 0.',
+    )
+  })
+
+  it('says "select all that apply" once, even when the question text repeats it', async () => {
+    const user = userEvent.setup()
+    const questions = attempt().questions.map((q) =>
+      q.type === 'mrq' ? { ...q, prompt: `${q.prompt} (Select all that apply.)` } : q,
+    )
+    render(
+      <QuizRunner
+        questions={questions}
+        submitting={false}
+        onSubmit={vi.fn<(r: Responses) => void>()}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText(/wrong picks cancel out/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/select all that apply/i)).toHaveLength(1)
+  })
 })

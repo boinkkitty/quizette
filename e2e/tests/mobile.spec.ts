@@ -46,6 +46,14 @@ test('every signed-in page fits a phone and has 44 px tap targets', async ({ pag
   await submitUnanswered(page, 5)
   await expectMobileFriendly(page) // Results
 
+  // The Dashboard and Topics again, now with a topic, a chapter and a quiz on them.
+  await page.goto('/')
+  await expect(page.getByRole('list', { name: 'By topic' })).toBeVisible()
+  await expectMobileFriendly(page)
+  await page.goto('/topics')
+  await expect(page.getByRole('button', { name: /^Delete topic / })).toBeVisible()
+  await expectMobileFriendly(page)
+
   await page.goto('/history')
   await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
   await expectMobileFriendly(page)

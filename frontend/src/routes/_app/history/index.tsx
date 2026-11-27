@@ -32,7 +32,7 @@ function HistoryPage() {
   const shown = attempts.filter((a) => filter === 'all' || a.scope === filter)
   return (
     <>
-      <PageHeader title="History" subtitle="Your quizzes, newest first." />
+      <PageHeader title="History" subtitle="Quiz attempts, newest → oldest." />
       {attempts.length === 0 ? (
         <EmptyState title="No quizzes yet">
           <Link to="/upload" className="font-medium text-primary hover:underline">

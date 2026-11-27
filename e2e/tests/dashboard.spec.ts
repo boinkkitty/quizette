@@ -32,7 +32,7 @@ test('the Dashboard leads a new account to Upload, then shows its uploads and qu
   const biology = main.getByRole('list', { name: 'By topic' }).getByRole('listitem')
   await expect(biology).toHaveCount(1)
   await expect(biology).toContainText('Biology')
-  await expect(biology).toContainText('1 of 1 chapters quizzed')
+  await expect(biology).toContainText('1 of 1 chapter quizzed')
   await expect(biology.getByRole('link', { name: 'Quiz topic' })).toBeVisible()
 
   const today = main.getByRole('list', { name: 'Today' }).getByRole('link')

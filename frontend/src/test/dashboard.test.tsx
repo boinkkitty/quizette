@@ -99,6 +99,56 @@ describe('dashboard', () => {
     )
   })
 
+  it('says "1 of 1 chapter quizzed" for a one-chapter topic', async () => {
+    serveDashboard(
+      dashboard({
+        topics: [
+          {
+            id: 't1',
+            name: 'Biology',
+            readyChapters: 1,
+            chaptersQuizzed: 1,
+            averageLastScorePct: 80,
+          },
+        ],
+      }),
+    )
+    renderApp('/')
+    const list = await screen.findByRole('list', { name: 'By topic' })
+    expect(list).toHaveTextContent('1 of 1 chapter quizzed')
+  })
+
+  it('offers no quiz while nothing is ready, and says no quizzes yet', async () => {
+    serveDashboard(
+      dashboard({
+        failedCount: 1,
+        stats: {
+          averageScorePct: null,
+          attemptCount: 0,
+          quizzesThisWeek: 0,
+          questionsAnswered: 0,
+          chaptersQuizzed: 0,
+          readyChapters: 0,
+        },
+        topics: [
+          {
+            id: 't1',
+            name: 'Biology',
+            readyChapters: 0,
+            chaptersQuizzed: 0,
+            averageLastScorePct: null,
+          },
+        ],
+      }),
+    )
+    renderApp('/')
+    const main = within(await screen.findByRole('main'))
+    expect(await main.findByText('Average score')).toBeInTheDocument()
+    expect(main.queryByRole('link', { name: 'Start a quiz' })).toBeNull()
+    expect(main.getByText('Average score').parentElement).toHaveTextContent('No quizzes yet')
+    expect(main.queryByText(/over 0/)).toBeNull()
+  })
+
   it('groups the activity by day, newest first', async () => {
     serveDashboard(
       dashboard({
