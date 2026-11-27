@@ -179,7 +179,7 @@ export function QuizPicker({ topics, chapters, preselect = {} }: QuizPickerProps
   const step = choice !== null ? 3 : topic !== null ? 2 : 1
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <StepIndicator step={step} />
       {topic !== null && (
         <Button variant="ghost" className="mb-4 -ml-2 h-11" onClick={back}>
