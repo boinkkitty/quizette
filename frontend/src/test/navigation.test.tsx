@@ -180,10 +180,11 @@ describe('upload page', () => {
 })
 
 describe('dashboard', () => {
-  it('leaves uploading to the sidebar', async () => {
+  it('leaves uploading to the sidebar once something is uploaded', async () => {
     renderApp('/')
-    await screen.findByRole('heading', { name: 'Your topics' })
-    expect(within(screen.getByRole('main')).queryByRole('link', { name: /Upload/ })).toBeNull()
+    await screen.findByRole('heading', { level: 1, name: 'Dashboard' })
+    const links = within(screen.getByRole('main')).queryAllByRole('link')
+    expect(links.filter((l) => l.getAttribute('href')?.startsWith('/upload'))).toEqual([])
   })
 })
 

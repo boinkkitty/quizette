@@ -14,7 +14,7 @@ test('sign up, log out, log back in', async ({ page }) => {
 
   await page.getByLabel('Password').fill('correct horse battery')
   await page.getByRole('button', { name: 'Log in' }).click()
-  await expect(page.getByRole('heading', { name: 'Your topics' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
 })
 
 test('protected pages redirect to login and back', async ({ page }) => {
@@ -40,7 +40,7 @@ test('duplicate email is rejected', async ({ page, context }) => {
 test('session lives in an HttpOnly cookie, survives a reload and ends on logout', async ({ page }) => {
   const apiAuth: string[] = []
   page.on('request', (req) => {
-    if (new URL(req.url()).pathname === '/api/topics') apiAuth.push(req.headers()['authorization'] ?? '')
+    if (new URL(req.url()).pathname === '/api/dashboard') apiAuth.push(req.headers()['authorization'] ?? '')
   })
   await signUp(page)
 
@@ -50,7 +50,7 @@ test('session lives in an HttpOnly cookie, survives a reload and ends on logout'
   expect(await page.evaluate(() => document.cookie)).not.toContain('qz_session')
 
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Your topics' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
   expect(apiAuth.length).toBeGreaterThanOrEqual(2)
   for (const a of apiAuth) expect(a).toBe('') // cookie only, no Authorization header
 

@@ -88,7 +88,7 @@ func run() error {
 		logger.InfoContext(ctx, "http.no_frontend", slog.String("hint", "built without frontend/dist; serving the API only"))
 	}
 	handler, err := qhttp.NewRouter(qhttp.Config{
-		Identity: identity, Library: &app.LibraryService{Deps: deps}, Generation: genSvc, Practice: &app.PracticeService{Deps: deps},
+		Identity: identity, Library: &app.LibraryService{Deps: deps}, Generation: genSvc, Practice: &app.PracticeService{Deps: deps}, Dashboard: &app.DashboardService{Deps: deps},
 		Logger: logger, PublicURL: cfg.PublicURL, SecureCookies: cfg.Production(),
 		Ready: pool.Ping, Web: frontend,
 	})

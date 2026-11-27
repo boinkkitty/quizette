@@ -99,7 +99,7 @@ Example: correct = {A,C}. Pick A,C → 1. Pick A → 0.5. Pick A,B → 0. Pick a
 - **Why its own aggregate:** many attempts per set, written by the user while the set is read-only. Putting attempts inside QuestionSet would make the immutable bank a write hotspot and grow unboundedly.
 - **Invariants:** count is a multiple of 5, at least 5 and ≤ min(pool size, 50), where the pool (`domain.Pool`) is the question sets of the scope's ready chapters; drawn questions are distinct members of the pool; answers only for drawn questions; score derived, never client-supplied.
 - **Snapshot of `QuestionIDs`:** history shows exactly what was asked, in what order, even though selection is randomised, and chapters added to a topic later don't change its past attempts. An answer's chapter is derived through question → question set → chapter.
-- **Stats:** a chapter's attempt count and best score count chapter-scoped attempts only; a topic's count, last and best score count topic-scoped attempts only.
+- **Stats:** a chapter's attempt count and best score count chapter-scoped attempts only; a topic's count, last and best score count topic-scoped attempts only. The Dashboard follows the same rule: a chapter's last score, behind "Chapters quizzed" and the By topic bars, is its latest chapter-scoped attempt, while the average score, quizzes this week and questions answered count attempts of both scopes.
 - **Name:** "Attempt" with a scope rather than a ChapterAttempt per chapter (ADR 0010); "Quiz" is the UI word only.
 
 ### DrawQuestions, SplitAcrossChapters (domain services)

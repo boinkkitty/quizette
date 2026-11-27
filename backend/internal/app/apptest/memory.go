@@ -256,12 +256,15 @@ func (r chapterRepo) ListByOwner(_ context.Context, owner domain.ID, filter app.
 // maxPct returns the greater of best and a's score as a percentage, like the
 // Postgres adapter's total_score / max_score * 100.
 func maxPct(best *float64, a domain.Attempt) *float64 {
-	pct := a.TotalScore / float64(a.MaxScore) * 100
+	pct := scorePct(a)
 	if best != nil && *best >= pct {
 		return best
 	}
 	return &pct
 }
+
+// scorePct is a's score as a percentage.
+func scorePct(a domain.Attempt) float64 { return a.TotalScore / float64(a.MaxScore) * 100 }
 
 // chapterSummaries builds summaries for chapters, not deleted, matching keep. The
 // caller holds s.mu.
@@ -272,10 +275,14 @@ func (s *Store) chapterSummaries(keep func(domain.Chapter) bool) []app.ChapterSu
 			continue
 		}
 		cs := app.ChapterSummary{Chapter: c, TopicName: s.topics[c.TopicID].Name, QuestionCount: s.sets[c.ID].Size()}
+		var last time.Time
 		for _, a := range s.attempts {
 			if a.Scope == domain.ChapterScope(c.ID) {
 				cs.AttemptCount++
 				cs.BestScorePct = maxPct(cs.BestScorePct, a)
+				if pct := scorePct(a); cs.LastScorePct == nil || a.SubmittedAt.After(last) {
+					cs.LastScorePct, last = &pct, a.SubmittedAt
+				}
 			}
 		}
 		out = append(out, cs)
@@ -499,6 +506,31 @@ func (r attemptRepo) ListByOwner(_ context.Context, owner domain.ID, limit int) 
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
 	if len(out) > limit {
 		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (r attemptRepo) Stats(_ context.Context, owner domain.ID, since time.Time) (app.AttemptStats, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	var (
+		out app.AttemptStats
+		sum float64
+	)
+	for _, a := range r.s.attempts {
+		if a.OwnerID != owner {
+			continue
+		}
+		out.Count++
+		out.Questions += len(a.QuestionIDs)
+		sum += scorePct(a)
+		if !a.SubmittedAt.Before(since) {
+			out.RecentCount++
+		}
+	}
+	if out.Count > 0 {
+		avg := sum / float64(out.Count)
+		out.AverageScorePct = &avg
 	}
 	return out, nil
 }

@@ -50,7 +50,7 @@ describe('routing', () => {
     await u.type(await screen.findByLabelText('Email'), 'ada@example.com')
     await u.type(screen.getByLabelText('Password'), 'correct horse')
     await u.click(screen.getByRole('button', { name: 'Log in' }))
-    expect(await screen.findByRole('heading', { name: 'Your topics' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 
@@ -287,7 +287,7 @@ describe('quiz runner', () => {
 describe('session', () => {
   it('restores the session from the cookie on load', async () => {
     renderApp('/')
-    expect(await screen.findByRole('heading', { name: 'Your topics' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
     expect(screen.getByText('Ada')).toBeInTheDocument()
   })
 
@@ -316,7 +316,7 @@ describe('session', () => {
     )
     const u = userEvent.setup()
     const { router } = renderApp('/')
-    await screen.findByRole('heading', { name: 'Your topics' })
+    await screen.findByRole('heading', { level: 1, name: 'Dashboard' })
     expired = true
     await u.click(screen.getByRole('link', { name: /Biology/ }))
     expect(await screen.findByRole('heading', { name: 'Log in to Quizette' })).toBeInTheDocument()

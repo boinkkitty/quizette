@@ -15,6 +15,7 @@ import {
   attemptSummarySchema,
   chapterSchema,
   chapterSummarySchema,
+  dashboardSchema,
   type Job,
   jobSchema,
   providersSchema,
@@ -40,6 +41,7 @@ export const keys = {
   allAttempts: ['attempts'] as const,
   attempt: (id: string) => ['attempts', id] as const,
   job: (id: string) => ['jobs', id] as const,
+  dashboard: ['dashboard'] as const,
 }
 
 /** Current user from the session cookie, or null when logged out. */
@@ -104,6 +106,13 @@ export const chaptersQuery = (filter: ChapterFilter = {}) =>
 export const allAttemptsQuery = queryOptions({
   queryKey: keys.allAttempts,
   queryFn: ({ signal }) => request(z.array(attemptHistoryItemSchema), '/attempts', { signal }),
+})
+
+/** The Dashboard's figures and Activity feed. Polls while a chapter is generating. */
+export const dashboardQuery = queryOptions({
+  queryKey: keys.dashboard,
+  queryFn: ({ signal }) => request(dashboardSchema, '/dashboard', { signal }),
+  refetchInterval: (q) => ((q.state.data?.generatingCount ?? 0) > 0 ? 3000 : false),
 })
 
 export const chapterQuery = (id: string) =>
@@ -199,6 +208,7 @@ export function useUpload() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: keys.topics })
+      await qc.invalidateQueries({ queryKey: keys.dashboard })
       await qc.invalidateQueries({ queryKey: keys.chapterLists })
     },
   })
@@ -233,6 +243,7 @@ export function useSubmitQuiz(quiz: DrawnQuiz) {
         await qc.invalidateQueries({ queryKey: keys.chapter(attempt.chapterId) })
       }
       await qc.invalidateQueries({ queryKey: keys.topics })
+      await qc.invalidateQueries({ queryKey: keys.dashboard })
       await qc.invalidateQueries({ queryKey: keys.chapterLists })
       await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })
     },
@@ -247,6 +258,7 @@ export function useDeleteChapter() {
     onSuccess: async (_, id) => {
       clearQuizFrom([id])
       await qc.invalidateQueries({ queryKey: keys.topics })
+      await qc.invalidateQueries({ queryKey: keys.dashboard })
       await qc.invalidateQueries({ queryKey: keys.chapterLists })
       await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })
     },
@@ -265,6 +277,7 @@ export function useDeleteTopic() {
     onSuccess: async (_, { chapterIds }) => {
       clearQuizFrom(chapterIds)
       await qc.invalidateQueries({ queryKey: keys.topics })
+      await qc.invalidateQueries({ queryKey: keys.dashboard })
       await qc.invalidateQueries({ queryKey: keys.chapterLists })
       await qc.invalidateQueries({ queryKey: keys.allAttempts, exact: true })
     },

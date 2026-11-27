@@ -2,10 +2,13 @@ import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 
 import type {
+  ActivityAttempt,
+  ActivityUpload,
   Attempt,
   AttemptHistoryItem,
   Chapter,
   ChapterSummary,
+  Dashboard,
   DrawnQuiz,
   Job,
   Topic,
@@ -174,11 +177,70 @@ export function historyItem(overrides: Partial<AttemptHistoryItem> = {}): Attemp
   }
 }
 
+/** A Dashboard with one ready, unquizzed chapter in Biology and no activity. */
+export function dashboard(overrides: Partial<Dashboard> = {}): Dashboard {
+  return {
+    chapterCount: 1,
+    generatingCount: 0,
+    failedCount: 0,
+    stats: {
+      averageScorePct: null,
+      attemptCount: 0,
+      quizzesThisWeek: 0,
+      questionsAnswered: 0,
+      chaptersQuizzed: 0,
+      readyChapters: 1,
+    },
+    topics: [
+      {
+        id: 't1',
+        name: 'Biology',
+        readyChapters: 1,
+        chaptersQuizzed: 0,
+        averageLastScorePct: null,
+      },
+    ],
+    activity: [],
+    ...overrides,
+  }
+}
+
+export function activityAttempt(overrides: Partial<ActivityAttempt> = {}): ActivityAttempt {
+  return {
+    kind: 'attempt',
+    id: 'a1',
+    at: '2026-11-20T10:05:00Z',
+    scope: 'chapter',
+    chapterId: 'c1',
+    chapterTitle: 'Cells',
+    topicId: 't1',
+    topicName: 'Biology',
+    scorePct: 50,
+    count: 5,
+    ...overrides,
+  }
+}
+
+export function activityUpload(overrides: Partial<ActivityUpload> = {}): ActivityUpload {
+  return {
+    kind: 'upload',
+    id: 'c1',
+    at: '2026-11-20T10:00:00Z',
+    chapterTitle: 'Cells',
+    topicId: 't1',
+    topicName: 'Biology',
+    status: 'ready',
+    questionCount: 10,
+    ...overrides,
+  }
+}
+
 /** Default happy-path handlers; tests override with server.use(...). */
 export const handlers = [
   http.get('/api/auth/me', () => HttpResponse.json(user)),
   http.get('/api/auth/providers', () => HttpResponse.json({ providers: ['google', 'github'] })),
   http.get('/api/topics', () => HttpResponse.json(topics)),
+  http.get('/api/dashboard', () => HttpResponse.json(dashboard())),
 ]
 
 export const server = setupServer(...handlers)

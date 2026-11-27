@@ -225,6 +225,67 @@ export function questionChapter(q: Question): QuestionChapter {
   return { id: q.chapterId, title: q.chapterTitle, deleted: q.chapterDeleted === true }
 }
 
+/** A submitted attempt in the Dashboard's Activity feed. chapterTitle is empty for a topic quiz. */
+export const activityAttemptSchema = z.object({
+  kind: z.literal('attempt'),
+  id: z.string(),
+  at: z.string(),
+  scope: z.enum(['chapter', 'topic']),
+  chapterId: z.string().optional(),
+  chapterTitle: z.string(),
+  topicId: z.string(),
+  topicName: z.string(),
+  scorePct: z.number(),
+  count: z.number().int(),
+})
+export type ActivityAttempt = z.infer<typeof activityAttemptSchema>
+
+/** A chapter upload in the Dashboard's Activity feed; id is the chapter's. */
+export const activityUploadSchema = z.object({
+  kind: z.literal('upload'),
+  id: z.string(),
+  at: z.string(),
+  chapterTitle: z.string(),
+  topicId: z.string(),
+  topicName: z.string(),
+  status: chapterStatusSchema,
+  questionCount: z.number().int(),
+})
+export type ActivityUpload = z.infer<typeof activityUploadSchema>
+
+export const activityItemSchema = z.discriminatedUnion('kind', [
+  activityAttemptSchema,
+  activityUploadSchema,
+])
+export type ActivityItem = z.infer<typeof activityItemSchema>
+
+/** GET /api/dashboard. Chapter figures count chapter quizzes only (ADR 0010). */
+export const dashboardSchema = z.object({
+  chapterCount: z.number().int(),
+  generatingCount: z.number().int(),
+  failedCount: z.number().int(),
+  stats: z.object({
+    averageScorePct: z.number().nullable(),
+    attemptCount: z.number().int(),
+    quizzesThisWeek: z.number().int(),
+    questionsAnswered: z.number().int(),
+    chaptersQuizzed: z.number().int(),
+    readyChapters: z.number().int(),
+  }),
+  topics: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      readyChapters: z.number().int(),
+      chaptersQuizzed: z.number().int(),
+      averageLastScorePct: z.number().nullable(),
+    }),
+  ),
+  /** The newest 30 uploads and attempts, newest first. */
+  activity: z.array(activityItemSchema),
+})
+export type Dashboard = z.infer<typeof dashboardSchema>
+
 export const uploadResultSchema = z.object({
   jobId: z.string(),
   chapterId: z.string(),
