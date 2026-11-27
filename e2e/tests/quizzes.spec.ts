@@ -1,34 +1,6 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
-import { signUp, uploadSample } from './helpers'
-
-/** Fails if the page scrolls sideways or a control in main is smaller than 44 × 44 px. */
-async function expectMobileFriendly(page: Page): Promise<void> {
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  )
-  expect(overflow, 'horizontal overflow (px)').toBeLessThanOrEqual(0)
-  const controls = page.getByRole('main').locator('button:visible, a:visible, input:visible')
-  for (const control of await controls.all()) {
-    const box = await control.boundingBox()
-    if (box === null) continue
-    const name = (await control.textContent())?.trim() ?? ''
-    expect(Math.round(box.height), `height of "${name}"`).toBeGreaterThanOrEqual(44)
-    expect(Math.round(box.width), `width of "${name}"`).toBeGreaterThanOrEqual(44)
-  }
-}
-
-/** Clicks through every question without answering and submits anyway. */
-async function submitUnanswered(page: Page, count: number): Promise<void> {
-  for (let i = 1; i < count; i++) {
-    await expect(page.getByText(`Question ${String(i)} of ${String(count)}`)).toBeVisible()
-    await page.getByRole('button', { name: 'Next' }).click()
-  }
-  await page.getByRole('button', { name: 'Submit quiz' }).click()
-  await page.getByRole('button', { name: 'Submit anyway' }).click()
-  await expect(page).toHaveURL(/\/attempts\/[^/]+\/results$/)
-  await expect(page.getByTestId('score')).toHaveText(`0 / ${String(count)}`)
-}
+import { expectMobileFriendly, signUp, submitUnanswered, uploadSample } from './helpers'
 
 test('quiz a whole topic, then one chapter, from the three-step picker on mobile', async ({
   page,

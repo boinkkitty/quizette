@@ -146,7 +146,7 @@ function AttemptHistory({ chapterId }: { chapterId: string }) {
               </td>
               <td className="px-6 py-3 text-right">
                 <Link
-                  to="/attempts/$attemptId/results"
+                  to="/history/$attemptId"
                   params={{ attemptId: a.id }}
                   className="font-medium text-primary hover:underline"
                 >

@@ -434,3 +434,54 @@ func TestSubmitQuizRejectsInvalidDraws(t *testing.T) {
 		t.Errorf("submit attempt endpoint: %d", code)
 	}
 }
+
+func TestHistoryCountsTheChaptersAQuizDrewFrom(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	c := h.client(t)
+	topicID, cellsID, _ := biologyTopic(t, h, c)
+
+	var topicQ, chapterQ drawnQuiz
+	c.do("POST", "/api/quizzes/draw", map[string]any{"topicId": topicID, "count": 5}, &topicQ)
+	submitQuiz(t, c, map[string]any{"topicId": topicID}, topicQ, false)
+	h.clock.Advance(time.Second)
+	c.do("POST", "/api/quizzes/draw", map[string]any{"chapterId": cellsID, "count": 5}, &chapterQ)
+	submitQuiz(t, c, map[string]any{"chapterId": cellsID}, chapterQ, false)
+
+	var hist []map[string]any
+	c.do("GET", "/api/attempts", nil, &hist)
+	if len(hist) != 2 {
+		t.Fatalf("history: %+v", hist)
+	}
+	// Newest first: 5 questions from a topic of 10 and 5 split 3 and 2, so two chapters.
+	if hist[0]["scope"] != "chapter" || hist[0]["chapterCount"] != float64(1) {
+		t.Errorf("chapter quiz: %+v, want chapterCount 1", hist[0])
+	}
+	if hist[1]["scope"] != "topic" || hist[1]["chapterCount"] != float64(2) {
+		t.Errorf("topic quiz: %+v, want chapterCount 2", hist[1])
+	}
+}
+
+func TestChapterQuizAttemptNamesItsTopic(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	c := h.client(t)
+	chapterID := readyChapter(t, c, "ada@example.com", "Cells", 10)
+	topicID := topicOf(t, c, chapterID)
+
+	var q drawnQuiz
+	c.do("POST", "/api/quizzes/draw", map[string]any{"chapterId": chapterID, "count": 5}, &q)
+	var submitted, got scopedAttempt
+	body := map[string]any{"chapterId": chapterID, "questionIds": questionIDs(q), "answers": []any{}}
+	if code := c.do("POST", "/api/attempts", body, &submitted); code != http.StatusCreated {
+		t.Fatalf("submit: %d", code)
+	}
+	if code := c.do("GET", "/api/attempts/"+submitted.ID, nil, &got); code != http.StatusOK {
+		t.Fatalf("get attempt: %d", code)
+	}
+	for name, a := range map[string]scopedAttempt{"submit": submitted, "get": got} {
+		if a.Scope != "chapter" || a.ChapterID != chapterID || a.TopicID != topicID || a.TopicName != "Cells topic" {
+			t.Errorf("%s: %+v, want chapter %s in topic %s (Cells topic)", name, a, chapterID, topicID)
+		}
+	}
+}

@@ -265,7 +265,7 @@ describe('topic quiz', () => {
     await u.click(screen.getByRole('button', { name: 'Submit quiz' }))
     await u.click(await screen.findByRole('button', { name: 'Submit anyway' }))
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/attempts/a1/results'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/history/a1'))
     expect(submits).toEqual([
       {
         topicId: 't1',
@@ -273,7 +273,8 @@ describe('topic quiz', () => {
         answers: [{ questionId: 'q1', selected: [1] }],
       },
     ])
-    expect(await screen.findByRole('link', { name: '← All of Biology' })).toHaveAttribute(
+    expect(await screen.findByRole('heading', { name: 'Biology' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to Biology' })).toHaveAttribute(
       'href',
       '/topics/t1',
     )

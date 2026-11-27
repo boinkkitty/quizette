@@ -62,11 +62,16 @@ export function attempt(overrides: Partial<Attempt> = {}): Attempt {
     startedAt: '2026-11-20T10:05:00Z',
     submittedAt: '2026-11-20T10:05:00Z',
     chapterTitle: 'Cells',
+    topicId: 't1',
+    topicName: 'Biology',
+    scopeDeleted: false,
     answers: [],
     questions: [
       {
         id: 'q1',
         position: 0,
+        chapterId: 'c1',
+        chapterTitle: 'Cells',
         type: 'mcq',
         prompt: 'Powerhouse of the cell?',
         options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi'],
@@ -74,6 +79,8 @@ export function attempt(overrides: Partial<Attempt> = {}): Attempt {
       {
         id: 'q2',
         position: 1,
+        chapterId: 'c1',
+        chapterTitle: 'Cells',
         type: 'true_false',
         prompt: 'Plant cells have walls.',
         options: ['True', 'False'],
@@ -81,6 +88,8 @@ export function attempt(overrides: Partial<Attempt> = {}): Attempt {
       {
         id: 'q3',
         position: 2,
+        chapterId: 'c1',
+        chapterTitle: 'Cells',
         type: 'mrq',
         prompt: 'Which are organelles?',
         options: ['Nucleus', 'Water', 'Ribosome'],
@@ -159,6 +168,8 @@ export function historyItem(overrides: Partial<AttemptHistoryItem> = {}): Attemp
     chapterTitle: 'Cells',
     topicId: 't1',
     topicName: 'Biology',
+    scopeDeleted: false,
+    chapterCount: 1,
     ...overrides,
   }
 }

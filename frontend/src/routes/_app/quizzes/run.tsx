@@ -91,7 +91,7 @@ function RunQuiz({ saved }: { saved: NonNullable<ReturnType<typeof loadQuiz>> })
               clearQuiz()
               // Replace the runner, so Back from the results doesn't reopen an empty quiz.
               void navigate({
-                to: '/attempts/$attemptId/results',
+                to: '/history/$attemptId',
                 params: { attemptId: attempt.id },
                 replace: true,
               })

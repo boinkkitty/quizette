@@ -528,3 +528,49 @@ func freshDB(t *testing.T) *pgxpool.Pool {
 	})
 	return pool
 }
+
+func TestHistoryCountsTheChaptersAQuizDrewFrom(t *testing.T) {
+	pool := openDB(t)
+	ctx := context.Background()
+	_, gen, lib, prac, u := newServices(t, pool, true)
+
+	cells, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, NewTopicName: "Biology", Count: 10, Filename: "cells.pdf", Data: []byte("%PDF-1.4 cells")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gen.UploadDocument(ctx, app.UploadCommand{OwnerID: u.ID, TopicID: cells.TopicID, Count: 10, Filename: "genes.pdf", Data: []byte("%PDF-1.4 genes")}); err != nil {
+		t.Fatal(err)
+	}
+	submit := func(scope domain.AttemptScope) {
+		t.Helper()
+		q, err := prac.DrawQuiz(ctx, u.ID, scope, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make([]domain.ID, len(q.Questions))
+		for i, dq := range q.Questions {
+			ids[i] = dq.ID
+		}
+		if _, err := prac.SubmitQuiz(ctx, u.ID, scope, ids, nil); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond) // Attempts are listed by started_at, so space them apart.
+	}
+	submit(domain.TopicScope(cells.TopicID)) // The draw splits 10 questions 5 and 5 over the two chapters.
+	submit(domain.ChapterScope(cells.ChapterID))
+	// A deleted chapter still counts: the attempt drew from it.
+	if err := lib.DeleteChapter(ctx, u.ID, cells.ChapterID); err != nil {
+		t.Fatal(err)
+	}
+
+	hist, err := prac.ListAttempts(ctx, u.ID)
+	if err != nil || len(hist) != 2 {
+		t.Fatalf("history: %v %+v", err, hist)
+	}
+	if hist[0].Scope.Type != domain.ScopeChapter || hist[0].ChapterCount != 1 {
+		t.Errorf("chapter quiz: %+v, want ChapterCount 1", hist[0])
+	}
+	if hist[1].Scope.Type != domain.ScopeTopic || hist[1].ChapterCount != 2 {
+		t.Errorf("topic quiz: %+v, want ChapterCount 2", hist[1])
+	}
+}

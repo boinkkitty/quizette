@@ -139,13 +139,15 @@ type QuestionSetRepository interface {
 
 // AttemptSummary is an Attempt with the names needed by an owner-wide history list.
 // ChapterTitle is empty for a topic-scoped attempt. ScopeDeleted reports whether the
-// attempt's chapter or topic is deleted. Answers are not loaded.
+// attempt's chapter or topic is deleted. ChapterCount is the number of distinct
+// chapters, deleted or not, the attempt drew questions from. Answers are not loaded.
 type AttemptSummary struct {
 	domain.Attempt
 	ChapterTitle string
 	TopicID      domain.ID
 	TopicName    string
 	ScopeDeleted bool
+	ChapterCount int
 }
 
 // AttemptRepository persists Attempts.

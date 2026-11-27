@@ -13,13 +13,13 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppHistoryRouteImport } from './routes/_app/history'
 import { Route as AppUploadRouteImport } from './routes/_app/upload'
+import { Route as AppHistoryIndexRouteImport } from './routes/_app/history/index'
+import { Route as AppHistoryAttemptIdRouteImport } from './routes/_app/history/$attemptId'
 import { Route as AppQuizzesIndexRouteImport } from './routes/_app/quizzes/index'
 import { Route as AppQuizzesRunRouteImport } from './routes/_app/quizzes/run'
 import { Route as AppTopicsIndexRouteImport } from './routes/_app/topics.index'
 import { Route as AppTopicsTopicIdRouteImport } from './routes/_app/topics.$topicId'
-import { Route as AppAttemptsAttemptIdResultsRouteImport } from './routes/_app/attempts.$attemptId/results'
 import { Route as AppChaptersChapterIdIndexRouteImport } from './routes/_app/chapters.$chapterId/index'
 import { Route as AppChaptersChapterIdQuestionsRouteImport } from './routes/_app/chapters.$chapterId/questions'
 
@@ -42,14 +42,19 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppHistoryRoute = AppHistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppUploadRoute = AppUploadRouteImport.update({
   id: '/upload',
   path: '/upload',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHistoryIndexRoute = AppHistoryIndexRouteImport.update({
+  id: '/history/',
+  path: '/history/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHistoryAttemptIdRoute = AppHistoryAttemptIdRouteImport.update({
+  id: '/history/$attemptId',
+  path: '/history/$attemptId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppQuizzesIndexRoute = AppQuizzesIndexRouteImport.update({
@@ -72,12 +77,6 @@ const AppTopicsTopicIdRoute = AppTopicsTopicIdRouteImport.update({
   path: '/topics/$topicId',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAttemptsAttemptIdResultsRoute =
-  AppAttemptsAttemptIdResultsRouteImport.update({
-    id: '/attempts/$attemptId/results',
-    path: '/attempts/$attemptId/results',
-    getParentRoute: () => AppRoute,
-  } as any)
 const AppChaptersChapterIdIndexRoute =
   AppChaptersChapterIdIndexRouteImport.update({
     id: '/chapters/$chapterId/',
@@ -95,27 +94,27 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/history': typeof AppHistoryRoute
   '/upload': typeof AppUploadRoute
+  '/history/$attemptId': typeof AppHistoryAttemptIdRoute
   '/quizzes/run': typeof AppQuizzesRunRoute
   '/topics/$topicId': typeof AppTopicsTopicIdRoute
+  '/history/': typeof AppHistoryIndexRoute
   '/quizzes/': typeof AppQuizzesIndexRoute
   '/topics/': typeof AppTopicsIndexRoute
-  '/attempts/$attemptId/results': typeof AppAttemptsAttemptIdResultsRoute
   '/chapters/$chapterId/questions': typeof AppChaptersChapterIdQuestionsRoute
   '/chapters/$chapterId/': typeof AppChaptersChapterIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/history': typeof AppHistoryRoute
   '/upload': typeof AppUploadRoute
   '/': typeof AppIndexRoute
+  '/history/$attemptId': typeof AppHistoryAttemptIdRoute
   '/quizzes/run': typeof AppQuizzesRunRoute
   '/topics/$topicId': typeof AppTopicsTopicIdRoute
+  '/history': typeof AppHistoryIndexRoute
   '/quizzes': typeof AppQuizzesIndexRoute
   '/topics': typeof AppTopicsIndexRoute
-  '/attempts/$attemptId/results': typeof AppAttemptsAttemptIdResultsRoute
   '/chapters/$chapterId/questions': typeof AppChaptersChapterIdQuestionsRoute
   '/chapters/$chapterId': typeof AppChaptersChapterIdIndexRoute
 }
@@ -124,14 +123,14 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/_app/history': typeof AppHistoryRoute
   '/_app/upload': typeof AppUploadRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/history/$attemptId': typeof AppHistoryAttemptIdRoute
   '/_app/quizzes/run': typeof AppQuizzesRunRoute
   '/_app/topics/$topicId': typeof AppTopicsTopicIdRoute
+  '/_app/history/': typeof AppHistoryIndexRoute
   '/_app/quizzes/': typeof AppQuizzesIndexRoute
   '/_app/topics/': typeof AppTopicsIndexRoute
-  '/_app/attempts/$attemptId/results': typeof AppAttemptsAttemptIdResultsRoute
   '/_app/chapters/$chapterId/questions': typeof AppChaptersChapterIdQuestionsRoute
   '/_app/chapters/$chapterId/': typeof AppChaptersChapterIdIndexRoute
 }
@@ -141,27 +140,27 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
-    | '/history'
     | '/upload'
+    | '/history/$attemptId'
     | '/quizzes/run'
     | '/topics/$topicId'
+    | '/history/'
     | '/quizzes/'
     | '/topics/'
-    | '/attempts/$attemptId/results'
     | '/chapters/$chapterId/questions'
     | '/chapters/$chapterId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/signup'
-    | '/history'
     | '/upload'
     | '/'
+    | '/history/$attemptId'
     | '/quizzes/run'
     | '/topics/$topicId'
+    | '/history'
     | '/quizzes'
     | '/topics'
-    | '/attempts/$attemptId/results'
     | '/chapters/$chapterId/questions'
     | '/chapters/$chapterId'
   id:
@@ -169,14 +168,14 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/signup'
-    | '/_app/history'
     | '/_app/upload'
     | '/_app/'
+    | '/_app/history/$attemptId'
     | '/_app/quizzes/run'
     | '/_app/topics/$topicId'
+    | '/_app/history/'
     | '/_app/quizzes/'
     | '/_app/topics/'
-    | '/_app/attempts/$attemptId/results'
     | '/_app/chapters/$chapterId/questions'
     | '/_app/chapters/$chapterId/'
   fileRoutesById: FileRoutesById
@@ -217,18 +216,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/history': {
-      id: '/_app/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof AppHistoryRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/upload': {
       id: '/_app/upload'
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof AppUploadRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/history/': {
+      id: '/_app/history/'
+      path: '/history'
+      fullPath: '/history/'
+      preLoaderRoute: typeof AppHistoryIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/history/$attemptId': {
+      id: '/_app/history/$attemptId'
+      path: '/history/$attemptId'
+      fullPath: '/history/$attemptId'
+      preLoaderRoute: typeof AppHistoryAttemptIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/quizzes/': {
@@ -259,13 +265,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTopicsTopicIdRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/attempts/$attemptId/results': {
-      id: '/_app/attempts/$attemptId/results'
-      path: '/attempts/$attemptId/results'
-      fullPath: '/attempts/$attemptId/results'
-      preLoaderRoute: typeof AppAttemptsAttemptIdResultsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/chapters/$chapterId/': {
       id: '/_app/chapters/$chapterId/'
       path: '/chapters/$chapterId'
@@ -284,27 +283,27 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
-  AppHistoryRoute: typeof AppHistoryRoute
   AppUploadRoute: typeof AppUploadRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppHistoryAttemptIdRoute: typeof AppHistoryAttemptIdRoute
   AppQuizzesRunRoute: typeof AppQuizzesRunRoute
   AppTopicsTopicIdRoute: typeof AppTopicsTopicIdRoute
+  AppHistoryIndexRoute: typeof AppHistoryIndexRoute
   AppQuizzesIndexRoute: typeof AppQuizzesIndexRoute
   AppTopicsIndexRoute: typeof AppTopicsIndexRoute
-  AppAttemptsAttemptIdResultsRoute: typeof AppAttemptsAttemptIdResultsRoute
   AppChaptersChapterIdQuestionsRoute: typeof AppChaptersChapterIdQuestionsRoute
   AppChaptersChapterIdIndexRoute: typeof AppChaptersChapterIdIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppHistoryRoute: AppHistoryRoute,
   AppUploadRoute: AppUploadRoute,
   AppIndexRoute: AppIndexRoute,
+  AppHistoryAttemptIdRoute: AppHistoryAttemptIdRoute,
   AppQuizzesRunRoute: AppQuizzesRunRoute,
   AppTopicsTopicIdRoute: AppTopicsTopicIdRoute,
+  AppHistoryIndexRoute: AppHistoryIndexRoute,
   AppQuizzesIndexRoute: AppQuizzesIndexRoute,
   AppTopicsIndexRoute: AppTopicsIndexRoute,
-  AppAttemptsAttemptIdResultsRoute: AppAttemptsAttemptIdResultsRoute,
   AppChaptersChapterIdQuestionsRoute: AppChaptersChapterIdQuestionsRoute,
   AppChaptersChapterIdIndexRoute: AppChaptersChapterIdIndexRoute,
 }
